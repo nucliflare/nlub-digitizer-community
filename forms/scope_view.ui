@@ -15,7 +15,7 @@
    <item>
     <widget class="QWidget" name="controlPanel">
      <property name="maximumSize">
-      <size><width>260</width><height>16777215</height></size>
+      <size><width>340</width><height>16777215</height></size>
      </property>
      <layout class="QVBoxLayout" name="controlLayout">
 
@@ -23,17 +23,30 @@
        <widget class="QGroupBox" name="groupTrigger">
         <property name="title"><string>Trigger</string></property>
         <layout class="QFormLayout" name="formTrigger">
+
          <item row="0" column="0">
           <widget class="QLabel" name="labelTriggerLevel">
            <property name="text"><string>Level:</string></property>
           </widget>
          </item>
          <item row="0" column="1">
-          <widget class="QSpinBox" name="spinTriggerLevel">
-           <property name="minimum"><number>-32768</number></property>
-           <property name="maximum"><number>32767</number></property>
-          </widget>
+          <layout class="QHBoxLayout" name="layoutTriggerLevel">
+           <item>
+            <widget class="QSpinBox" name="spinTriggerLevel">
+             <property name="minimum"><number>-32768</number></property>
+             <property name="maximum"><number>32767</number></property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSlider" name="sliderTriggerLevel">
+             <property name="minimum"><number>-32768</number></property>
+             <property name="maximum"><number>32767</number></property>
+             <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+            </widget>
+           </item>
+          </layout>
          </item>
+
          <item row="1" column="0">
           <widget class="QLabel" name="labelTriggerMode">
            <property name="text"><string>Mode:</string></property>
@@ -47,18 +60,32 @@
            <item><property name="text"><string>Rising edge</string></property></item>
           </widget>
          </item>
+
          <item row="2" column="0">
           <widget class="QLabel" name="labelDacValue">
            <property name="text"><string>DAC offset:</string></property>
           </widget>
          </item>
          <item row="2" column="1">
-          <widget class="QSpinBox" name="spinDacValue">
-           <property name="minimum"><number>0</number></property>
-           <property name="maximum"><number>1024</number></property>
-           <property name="value"><number>512</number></property>
-          </widget>
+          <layout class="QHBoxLayout" name="layoutDacValue">
+           <item>
+            <widget class="QSpinBox" name="spinDacValue">
+             <property name="minimum"><number>0</number></property>
+             <property name="maximum"><number>1024</number></property>
+             <property name="value"><number>512</number></property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSlider" name="sliderDacValue">
+             <property name="minimum"><number>0</number></property>
+             <property name="maximum"><number>1024</number></property>
+             <property name="value"><number>512</number></property>
+             <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+            </widget>
+           </item>
+          </layout>
          </item>
+
         </layout>
        </widget>
       </item>
