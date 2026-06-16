@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nlab"
+version = "0.1.0"
+description = "Device communication and measurement GUI application"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6>=6.7",
+    "pyqtgraph>=0.13",
+    "numpy>=2.0",
+    "scipy>=1.13",
+    "matplotlib>=3.9",
+    "fast_histogram>=0.11",
+    "grpcio>=1.64",
+    "protobuf>=5.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Build & code generation
+    "nuitka>=2.4",
+    "grpcio-tools>=1.64",
+    "ordered-set",          # required by nuitka --onefile
+    "zstandard",            # required by nuitka --onefile compression
+    "pyinstaller>=6.8",
+    # Licensing
+    "pip-licenses>=5.0",
+    # Testing
+    "pytest>=8.0",
+    "pytest-qt>=4.4",
+    "jupyter>=1.1",
+    # Linting / type checking
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+nlab = "nlab.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+nlab = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "N"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true

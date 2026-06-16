@@ -1,0 +1,61 @@
+"""Build a standalone executable using PyInstaller.
+
+Prerequisites (all in [dev] extras):
+    pip install -e ".[dev]"
+
+Run from the project root with the venv active:
+    python scripts/build_pyinstaller.py
+
+Output: dist/nlab.exe  (Windows)  /  dist/nlab  (Linux/macOS)
+
+Flags used
+----------
+--onefile       single executable (slower startup than --onedir)
+--windowed      no console window on Windows/macOS
+--icon          application icon
+--name          output binary name
+
+PyInstaller vs Nuitka
+---------------------
+PyInstaller bundles the Python interpreter + bytecode — faster to build,
+easier to debug hidden-import issues, but larger binary and easier to
+reverse-engineer.  Use Nuitka (scripts/build_nuitka.py) for release builds.
+"""
+
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+ENTRY = ROOT / "src" / "nlab" / "main.py"
+ICON = ROOT / "resources" / "icons" / "app.ico"
+DIST = ROOT / "dist"
+WORK = ROOT / "build" / "pyinstaller"
+
+args = [
+    sys.executable, "-m", "PyInstaller",
+    "--onefile",
+    "--windowed",
+    "--name", "nlab",
+    f"--icon={ICON}",
+    f"--distpath={DIST}",
+    f"--workpath={WORK}",
+    f"--specpath={ROOT / 'build' / 'pyinstaller'}",
+    # Add hidden imports if PyInstaller misses them at analysis time:
+    # "--hidden-import", "nlab.backend.grpc_device",
+    # Embed non-Python data (adjust paths as needed):
+    # f"--add-data={ROOT / 'resources'}:resources",
+    str(ENTRY),
+]
+
+
+def main() -> None:
+    DIST.mkdir(exist_ok=True)
+    print("Building with PyInstaller...")
+    print("Command:", " ".join(str(a) for a in args))
+    subprocess.run(args, check=True)
+    print(f"\nBuild complete. Output in {DIST}/")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1024</width>
+    <height>768</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Nuclear Lab Digitizer - Community Edition</string>
+  </property>
+
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="leftMargin"><number>4</number></property>
+    <property name="topMargin"><number>4</number></property>
+    <property name="rightMargin"><number>4</number></property>
+    <property name="bottomMargin"><number>4</number></property>
+    <item>
+     <widget class="QTabWidget" name="mainTabs">
+
+      <!-- ── Scope tab (inner channel tabs added programmatically) ── -->
+      <widget class="QWidget" name="tabScope">
+       <attribute name="title"><string>Scope</string></attribute>
+       <layout class="QVBoxLayout" name="layoutTabScope">
+        <property name="leftMargin"><number>0</number></property>
+        <property name="topMargin"><number>0</number></property>
+        <property name="rightMargin"><number>0</number></property>
+        <property name="bottomMargin"><number>0</number></property>
+       </layout>
+      </widget>
+
+      <!-- ── MCA tab (inner channel tabs added programmatically) ── -->
+      <widget class="QWidget" name="tabMCA">
+       <attribute name="title"><string>MCA</string></attribute>
+       <layout class="QVBoxLayout" name="layoutTabMCA">
+        <property name="leftMargin"><number>0</number></property>
+        <property name="topMargin"><number>0</number></property>
+        <property name="rightMargin"><number>0</number></property>
+        <property name="bottomMargin"><number>0</number></property>
+       </layout>
+      </widget>
+
+      <!-- ── System Log tab ───────────────────────────────────── -->
+      <widget class="QWidget" name="tabSystemLog">
+       <attribute name="title"><string>System Log</string></attribute>
+       <layout class="QVBoxLayout" name="layoutTabSystemLog">
+        <property name="leftMargin"><number>0</number></property>
+        <property name="topMargin"><number>0</number></property>
+        <property name="rightMargin"><number>0</number></property>
+        <property name="bottomMargin"><number>0</number></property>
+        <item>
+         <widget class="LogConsole" name="logConsole"/>
+        </item>
+       </layout>
+      </widget>
+
+     </widget>
+    </item>
+   </layout>
+  </widget>
+
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1024</width>
+     <height>33</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title"><string>File</string></property>
+    <addaction name="actionExit"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title"><string>Help</string></property>
+    <addaction name="actionAbout"/>
+    <addaction name="actionThirdPartyLicenses"/>
+   </widget>
+   <widget class="QMenu" name="menuDeveloper">
+    <property name="title"><string>Developer</string></property>
+    <addaction name="actionShowSystemLog"/>
+    <addaction name="actionDebugMode"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuHelp"/>
+   <addaction name="menuDeveloper"/>
+  </widget>
+
+  <widget class="QStatusBar" name="statusbar"/>
+
+  <action name="actionExit">
+   <property name="text"><string>Exit</string></property>
+  </action>
+  <action name="actionAbout">
+   <property name="text"><string>About</string></property>
+  </action>
+  <action name="actionThirdPartyLicenses">
+   <property name="text"><string>Third-Party Licenses</string></property>
+  </action>
+  <action name="actionShowSystemLog">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Show System Log</string></property>
+  </action>
+  <action name="actionDebugMode">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Debug Mode</string></property>
+  </action>
+
+ </widget>
+
+ <customwidgets>
+  <customwidget>
+   <class>LogConsole</class>
+   <extends>QPlainTextEdit</extends>
+   <header>nlab.views.log_panel</header>
+  </customwidget>
+ </customwidgets>
+ <resources>
+  <include location="../resources/resources.qrc"/>
+ </resources>
+ <connections/>
+</ui>

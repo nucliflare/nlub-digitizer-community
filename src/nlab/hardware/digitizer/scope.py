@@ -1,0 +1,210 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import IntEnum
+from typing import TypedDict, Union
+
+import numpy as np
+
+from .backends.base import ScopeBackend
+
+
+# ---------------------------------------------------------------------------
+# Parameter spec types — used for validation and GUI settings generation
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class RangeSpec:
+    min_val: int | float
+    max_val: int | float
+    step: int | float
+    default: int | float
+
+    def validate(self, val: int | float, name: str = "") -> None:
+        if not (self.min_val <= val <= self.max_val):
+            raise ValueError(
+                f"{name}: {val} out of range [{self.min_val}, {self.max_val}]"
+            )
+        if self.step and (val - self.min_val) % self.step != 0:
+            raise ValueError(f"{name}: {val} not aligned to step {self.step}")
+
+
+@dataclass(frozen=True)
+class ListSpec:
+    items: tuple[bool | int | float | str, ...]
+    default: bool | int | float | str
+
+    def validate(self, val: bool | int | float | str, name: str = "") -> None:
+        if val not in self.items:
+            raise ValueError(f"{name}: '{val}' not in {self.items}")
+
+
+ParameterSpec = Union[RangeSpec, ListSpec]
+
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+class TriggerMode(IntEnum):
+    ANY_ABOVE    = 0
+    ANY_BELOW    = 1
+    FALLING_EDGE = 2
+    RISING_EDGE  = 3
+
+
+class ScopeParam(IntEnum):
+    # Values equal the corresponding vdpp_config.json "scope" section widget id
+    TRIGGER_LEVEL      = 1
+    PRETRIGGER_SAMPLES = 2
+    FRAME_SAMPLES      = 3
+    EDGE_MODE          = 4
+    DAC_VALUE          = 5
+    # Internal — no JSON widget id (scope ids 6/7 are software DMA config, not this flag)
+    DMA_ENABLED        = 100
+
+
+# ---------------------------------------------------------------------------
+# Parameter specs (hardware limits)
+# ---------------------------------------------------------------------------
+
+PARAMETER_SPECS: dict[ScopeParam, ParameterSpec] = {
+    # int16_t on wire (input.txt: VDPP_scope_set_trigger_level)
+    ScopeParam.TRIGGER_LEVEL:      RangeSpec(min_val=-32768, max_val=32767, step=1, default=0),
+    ScopeParam.PRETRIGGER_SAMPLES: RangeSpec(min_val=0,      max_val=2040,  step=8, default=32),
+    ScopeParam.FRAME_SAMPLES:      RangeSpec(min_val=128,    max_val=16376, step=8, default=128),
+    ScopeParam.EDGE_MODE:          ListSpec(
+        items=tuple(m.name for m in TriggerMode),
+        default=TriggerMode.RISING_EDGE.name,
+    ),
+    # uint16_t on wire; config widget caps at 1024
+    ScopeParam.DAC_VALUE:          RangeSpec(min_val=0, max_val=1024, step=1, default=512),
+    ScopeParam.DMA_ENABLED:        ListSpec(items=(False, True), default=False),
+}
+
+
+# ---------------------------------------------------------------------------
+# TypedDict for GUI settings consumers
+# ---------------------------------------------------------------------------
+
+class ScopeSettingEntry(TypedDict):
+    id: int
+    value: int | str | bool
+
+
+# ---------------------------------------------------------------------------
+# Scope
+# ---------------------------------------------------------------------------
+
+class Scope:
+    """High-level scope interface. All validation lives here; the backend is
+    a thin hardware translator with no business logic."""
+
+    specs: dict[ScopeParam, ParameterSpec] = PARAMETER_SPECS
+
+    def __init__(self, backend: ScopeBackend) -> None:
+        self._b = backend
+
+    # ---- read-only device info ----
+
+    def get_ip_version(self) -> int:
+        return self._b.get_ip_version()
+
+    def get_mem_frame_size(self) -> int:
+        return self._b.get_mem_frame_size()
+
+    # ---- arm / disarm ----
+
+    def get_enable(self) -> bool:
+        return self._b.get_enable()
+
+    def set_enable(self, val: bool) -> None:
+        self._b.set_enable(val)
+
+    def get_dma_enable(self) -> bool:
+        return self._b.get_dma_enable()
+
+    def set_dma_enable(self, val: bool) -> None:
+        self._b.set_dma_enable(val)
+
+    def start(self) -> None:
+        self._b.set_enable(True)
+
+    def stop(self) -> None:
+        self._b.set_enable(False)
+
+    # ---- trigger ----
+
+    def get_trigger_level(self) -> int:
+        return self._b.get_trigger_level()
+
+    def set_trigger_level(self, val: int) -> None:
+        PARAMETER_SPECS[ScopeParam.TRIGGER_LEVEL].validate(val, "trigger_level")
+        self._b.set_trigger_level(val)
+
+    def get_trigger_mode(self) -> TriggerMode:
+        return TriggerMode(self._b.get_edge())
+
+    def set_trigger_mode(self, val: TriggerMode) -> None:
+        self._b.set_edge(int(val))
+
+    # ---- timing (in samples) ----
+
+    def get_pretrigger_samples(self) -> int:
+        return self._b.get_pretrigger_samples()
+
+    def set_pretrigger_samples(self, val: int) -> None:
+        PARAMETER_SPECS[ScopeParam.PRETRIGGER_SAMPLES].validate(val, "pretrigger_samples")
+        self._b.set_pretrigger_samples(val)
+
+    def get_frame_samples(self) -> int:
+        return self._b.get_frame_samples()
+
+    def set_frame_samples(self, val: int) -> None:
+        PARAMETER_SPECS[ScopeParam.FRAME_SAMPLES].validate(val, "frame_samples")
+        self._b.set_frame_samples(val)
+
+    # ---- DC offset ----
+
+    def get_dac_value(self) -> int:
+        return self._b.get_dac_value()
+
+    def set_dac_value(self, val: int) -> None:
+        PARAMETER_SPECS[ScopeParam.DAC_VALUE].validate(val, "dac_value")
+        self._b.set_dac_value(val)
+
+    # ---- data acquisition ----
+
+    def acquire_frame(self) -> np.ndarray:
+        """Read one captured frame. Returns int16 array of shape (n_samples,)."""
+        return self._b.read_frame()
+
+    # ---- diagnostics ----
+
+    def print_status(self) -> None:
+        """Print current scope configuration to stdout."""
+        print("── Scope ───────────────────────────────────────")
+        print(f"  ip_version        : {self.get_ip_version()}")
+        print(f"  mem_frame_size    : {self.get_mem_frame_size()} samples")
+        print(f"  enabled           : {self.get_enable()}")
+        print(f"  dma_enabled       : {self.get_dma_enable()}")
+        print(f"  trigger_level     : {self.get_trigger_level()}")
+        print(f"  trigger_mode      : {self.get_trigger_mode().name}")
+        print(f"  pretrigger        : {self.get_pretrigger_samples()} samples")
+        print(f"  frame_samples     : {self.get_frame_samples()} samples")
+        print(f"  dac_value         : {self.get_dac_value()}")
+
+    # ---- GUI helpers ----
+
+    def get_settings(self) -> list[ScopeSettingEntry]:
+        """Return current hardware state as a flat list for GUI consumption.
+
+        IDs match vdpp_config.json scope section widget ids.
+        """
+        return [
+            ScopeSettingEntry(id=int(ScopeParam.TRIGGER_LEVEL),      value=self.get_trigger_level()),
+            ScopeSettingEntry(id=int(ScopeParam.PRETRIGGER_SAMPLES),  value=self.get_pretrigger_samples()),
+            ScopeSettingEntry(id=int(ScopeParam.FRAME_SAMPLES),       value=self.get_frame_samples()),
+            ScopeSettingEntry(id=int(ScopeParam.EDGE_MODE),           value=self.get_trigger_mode().name),
+            ScopeSettingEntry(id=int(ScopeParam.DAC_VALUE),           value=self.get_dac_value()),
+        ]

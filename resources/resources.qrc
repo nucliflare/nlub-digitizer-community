@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/ewt.ico</file>
+        <file>ewt.png</file>
+    </qresource>
+</RCC>
