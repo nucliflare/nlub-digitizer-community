@@ -37,7 +37,6 @@ class MainWindowController:
         for ch in range(1, 1 + self._channels):
             device = Digitizer.from_grpc(channel=ch, hostname=self._host, port=self._port)
             self._devices.append(device)
-            device.print_status()
 
         self._scope_controllers: list[ScopeController] = []
         self._mca_controllers: list[MCAController] = []
@@ -58,11 +57,7 @@ class MainWindowController:
         """A QMainWindow used as an embedded dock-area panel."""
         host = QMainWindow()
         host.setWindowFlags(Qt.WindowType.Widget)
-        host.setDockOptions(
-            QMainWindow.DockOption.AllowTabbedDocks
-            | QMainWindow.DockOption.AllowNestedDocks
-            | QMainWindow.DockOption.AnimatedDocks
-        )
+        host.setDockOptions(QMainWindow.DockOption.AllowTabbedDocks | QMainWindow.DockOption.AllowNestedDocks | QMainWindow.DockOption.AnimatedDocks)
         return host
 
     @staticmethod
@@ -70,16 +65,11 @@ class MainWindowController:
         dock = QDockWidget(title)
         dock.setObjectName(obj_name)
         dock.setWidget(widget)
-        dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         return dock
 
     @staticmethod
-    def _populate_dock_host(
-        host: QMainWindow, docks: list[QDockWidget]
-    ) -> None:
+    def _populate_dock_host(host: QMainWindow, docks: list[QDockWidget]) -> None:
         """Add docks to host, tabified, with the first tab raised.
 
         All docks must be registered via addDockWidget before tabifyDockWidget
@@ -102,15 +92,11 @@ class MainWindowController:
 
             scope_ctrl = ScopeController(device.scope)
             self._scope_controllers.append(scope_ctrl)
-            scope_docks.append(
-                self._make_dock(f"scope_ch{idx + 1}", ch_label, scope_ctrl)
-            )
+            scope_docks.append(self._make_dock(f"scope_ch{idx + 1}", ch_label, scope_ctrl))
 
             mca_ctrl = MCAController(device.mca)
             self._mca_controllers.append(mca_ctrl)
-            mca_docks.append(
-                self._make_dock(f"mca_ch{idx + 1}", ch_label, mca_ctrl)
-            )
+            mca_docks.append(self._make_dock(f"mca_ch{idx + 1}", ch_label, mca_ctrl))
 
         self._populate_dock_host(self._scope_dock_host, scope_docks)
         self._populate_dock_host(self._mca_dock_host, mca_docks)
