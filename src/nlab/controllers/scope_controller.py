@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import logging
 from enum import IntEnum
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject, QRectF, QRunnable, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QRectF, QThreadPool, QTimer
 from PySide6.QtWidgets import QSlider, QSpinBox, QWidget
 
 from nlab.hardware.digitizer.scope import (
@@ -16,36 +15,13 @@ from nlab.hardware.digitizer.scope import (
     TriggerMode,
 )
 from nlab.ui.ui_scope_view import Ui_ScopeView
-
-log = logging.getLogger(__name__)
+from nlab.views.plot_viewbox import ModifierZoomViewBox
+from nlab.workers.scope_worker import ScopeWorker
 
 
 class DisplayMode(IntEnum):
     PERSISTENCE = 0
     RAW = 1
-
-
-class _FrameSignals(QObject):
-    ready = Signal(object)
-
-
-class _FrameWorker(QRunnable):
-    def __init__(self, scope_controller: ScopeController) -> None:
-        super().__init__()
-        self.signals = _FrameSignals()
-        self.controller = scope_controller
-        self.setAutoDelete(True)
-
-    def run(self) -> None:
-        try:
-            frame_size = self.controller.ui.spinFrameSamples.value()
-            raw_frame = self.controller._scope.acquire_frame()[:frame_size]
-            raw_time = raw_time = np.arange(0, 8 * len(raw_frame), 8)
-            data = [raw_time, raw_frame]
-            self.signals.ready.emit(data)
-        except Exception:
-            log.exception("Frame acquisition failed")
-            self.signals.ready.emit(None)
 
 
 class ScopeController(QWidget):
@@ -55,7 +31,6 @@ class ScopeController(QWidget):
     Widget ranges and defaults are driven entirely by Scope.specs at runtime.
     """
 
-    _DISPLAY_NX = 768
     _DISPLAY_NY = 768
     _Y_MIN = -32_000
     _Y_MAX = 32_000
@@ -71,6 +46,8 @@ class ScopeController(QWidget):
         self._refresh_timer.timeout.connect(self._request_frame)
 
         self._apply_parameter_specs()
+        self._send_defaults()
+        self._load_hardware_state()
         self._setup_graph()
         self._connect_signals()
 
@@ -129,6 +106,29 @@ class ScopeController(QWidget):
         slider.setValue(int(spec.default))
 
     # ------------------------------------------------------------------
+    # Write defaults to hardware, then read back
+    # ------------------------------------------------------------------
+
+    def _send_defaults(self) -> None:
+        specs = self._scope.specs
+        self._scope.set_trigger_level(int(specs[ScopeParam.TRIGGER_LEVEL].default))
+        self._scope.set_dac_value(int(specs[ScopeParam.DAC_VALUE].default))
+        self._scope.set_pretrigger_samples(int(specs[ScopeParam.PRETRIGGER_SAMPLES].default))
+        self._scope.set_frame_samples(int(specs[ScopeParam.FRAME_SAMPLES].default))
+        self._scope.set_trigger_mode(TriggerMode(specs[ScopeParam.EDGE_MODE].default))
+        self._scope.set_dma_enable(bool(specs[ScopeParam.DMA_ENABLED].default))
+
+    def _load_hardware_state(self) -> None:
+        self.ui.spinTriggerLevel.setValue(self._scope.get_trigger_level())
+        self.ui.sliderTriggerLevel.setValue(self._scope.get_trigger_level())
+        self.ui.spinDacValue.setValue(self._scope.get_dac_value())
+        self.ui.sliderDacValue.setValue(self._scope.get_dac_value())
+        self.ui.spinPretrigger.setValue(self._scope.get_pretrigger_samples())
+        self.ui.spinFrameSamples.setValue(self._scope.get_frame_samples())
+        self.ui.comboTriggerMode.setCurrentIndex(self._scope.get_trigger_mode().value)
+        self.ui.cbDmaEnable.setChecked(self._scope.get_dma_enable())
+
+    # ------------------------------------------------------------------
     # Signal wiring
     # ------------------------------------------------------------------
 
@@ -144,8 +144,8 @@ class ScopeController(QWidget):
             lambda v: self._scope.set_dac_value(v),
         )
 
-        self.ui.spinPretrigger.valueChanged.connect(lambda v: self._scope.set_pretrigger_samples(v))
-        self.ui.spinFrameSamples.valueChanged.connect(self._on_frame_samples_changed)
+        self.ui.spinPretrigger.editingFinished.connect(lambda: self._scope.set_pretrigger_samples(self.ui.spinPretrigger.value()))
+        self.ui.spinFrameSamples.editingFinished.connect(self._on_frame_samples_changed)
         self.ui.comboTriggerMode.currentIndexChanged.connect(lambda i: self._scope.set_trigger_mode(TriggerMode(i)))
         self.ui.cbDmaEnable.toggled.connect(lambda v: self._scope.set_dma_enable(v))
         self.ui.btnStart.clicked.connect(self._on_start)
@@ -162,11 +162,10 @@ class ScopeController(QWidget):
         spinbox: QSpinBox,
         set_fn: object,
     ) -> None:
-        """Bidirectional sync with a single hardware call per user gesture.
+        """Bidirectional display sync + hardware call only on commit.
 
-        Slider drag updates spinbox display only; hardware is called on
-        sliderReleased.  Spinbox changes update the slider display via
-        blockSignals (no loop) and call hardware immediately.
+        Slider drag updates spinbox display; sliderReleased sends to hardware.
+        Spinbox typing updates slider display; editingFinished sends to hardware.
         """
         slider.valueChanged.connect(spinbox.setValue)
 
@@ -174,12 +173,15 @@ class ScopeController(QWidget):
             slider.blockSignals(True)
             slider.setValue(v)
             slider.blockSignals(False)
-            set_fn(v)  # type: ignore[operator]
+
+        def on_spin_committed() -> None:
+            set_fn(spinbox.value())  # type: ignore[operator]
 
         def on_slider_released() -> None:
             set_fn(spinbox.value())  # type: ignore[operator]
 
         spinbox.valueChanged.connect(on_spin_changed)
+        spinbox.editingFinished.connect(on_spin_committed)
         slider.sliderReleased.connect(on_slider_released)
 
     # ------------------------------------------------------------------
@@ -210,28 +212,36 @@ class ScopeController(QWidget):
         if self._acquiring:
             return
         self._acquiring = True
-        worker = _FrameWorker(self)
+        worker = ScopeWorker(self._scope)
         worker.signals.ready.connect(self._on_frame_received)
         QThreadPool.globalInstance().start(worker)
 
-    def _on_frame_received(self, data: list[np.ndarray] | None) -> None:
+    def _on_frame_received(self, data: list[np.ndarray]) -> None:
         self._acquiring = False
+        x_time, y_voltage = data
         if data is None:
             return
         if self._display_mode == DisplayMode.RAW:
-            self._raw_curve.setData(*data)
+            self._raw_curve.setData(x_time, y_voltage)
+            # self._update_axis_ranges()
         else:
-            self._rasterize_frame(data[1])
+            self._rasterize_frame(y_voltage)
             self._persistence_img.setImage(self._persistence_buffer, autoLevels=False, levels=(0, 1))
 
-    def _on_frame_samples_changed(self, value: int) -> None:
+    def _on_frame_samples_changed(self) -> None:
+        value = self.ui.spinFrameSamples.value()
         self._scope.set_frame_samples(value)
+        self._display_nx = value // 8
+        self._persistence_buffer = np.zeros((self._display_nx, self._DISPLAY_NY), dtype=np.float32)
         self._update_axis_ranges()
 
     def _on_acquire_frame(self) -> None:
-        frame = self._scope.acquire_frame()
+        raw_frame = self._scope.acquire_frame()
+        value = self.ui.spinFrameSamples.value()
+        frame = raw_frame[: raw_frame // value]
+        time = np.arange(0, 8 * len(frame), 8)
         if self._display_mode == DisplayMode.RAW:
-            self._raw_curve.setData(frame)
+            self._raw_curve.setData(time, frame)
         else:
             self._rasterize_frame(frame)
             self._persistence_img.setImage(self._persistence_buffer, autoLevels=False, levels=(0, 1))
@@ -239,13 +249,13 @@ class ScopeController(QWidget):
     def _rasterize_frame(self, frame: np.ndarray) -> None:
         self._persistence_buffer *= self.persistence
         n_samples = len(frame)
-        x_indices = np.linspace(0, self._DISPLAY_NX - 1, n_samples).astype(int)
+        x_indices = np.linspace(0, self._display_nx - 1, n_samples).astype(int)
         y_indices = np.clip(
             ((frame.astype(np.float32) - self._Y_MIN) / (self._Y_MAX - self._Y_MIN) * (self._DISPLAY_NY - 1)).astype(int),
             0,
             self._DISPLAY_NY - 1,
         )
-        self._persistence_buffer[y_indices, x_indices] = 1.0
+        self._persistence_buffer[x_indices, y_indices] = 1.0
 
     # ------------------------------------------------------------------
     # Graph setup
@@ -265,7 +275,7 @@ class ScopeController(QWidget):
         self.ui.plotWaveform.setBackground("#f8f9fa")
 
         layout.addLabel("Amplitude", angle=-90)
-        self._plot_item = layout.addPlot()
+        self._plot_item = layout.addPlot(viewBox=ModifierZoomViewBox())
         self._plot_item.showAxis("right")
         self._plot_item.showAxis("top")
         self._plot_item.showGrid(x=True, y=True, alpha=0.2)
@@ -273,7 +283,8 @@ class ScopeController(QWidget):
         layout.addLabel("Time [ns]", col=1)
 
     def _setup_persistence_layer(self) -> None:
-        self._persistence_buffer = np.zeros((self._DISPLAY_NY, self._DISPLAY_NX), dtype=np.float32)
+        self._display_nx = self.ui.spinFrameSamples.value() // 8
+        self._persistence_buffer = np.zeros((self._display_nx, self._DISPLAY_NY), dtype=np.float32)
         self._persistence_img = pg.ImageItem()
         self._persistence_img.setImage(self._persistence_buffer, autoLevels=False, levels=(0, 1))
         self._persistence_img.setColorMap("viridis")

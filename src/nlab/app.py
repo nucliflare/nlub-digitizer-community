@@ -47,14 +47,15 @@ class MainAppWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _setup_ui(self) -> None:
-        self._ui = Ui_MainWindow()
-        self._ui.setupUi(self)
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
         self.resize(1024, 768)
 
-        self._ui.actionAbout.triggered.connect(self._on_about)
-        self._ui.actionThirdPartyLicenses.triggered.connect(self._on_third_party_licenses)
-        self._ui.actionShowSystemLog.toggled.connect(self._on_show_system_log_toggled)
-        self._ui.actionDebugMode.toggled.connect(self._on_debug_mode_toggled)
+        self.ui.actionExit.triggered.connect(self.close)
+        self.ui.actionAbout.triggered.connect(self._on_about)
+        self.ui.actionThirdPartyLicenses.triggered.connect(self._on_third_party_licenses)
+        self.ui.actionShowSystemLog.toggled.connect(self._on_show_system_log_toggled)
+        self.ui.actionDebugMode.toggled.connect(self._on_debug_mode_toggled)
 
         self._restore_developer_settings()
 
@@ -68,26 +69,26 @@ class MainAppWindow(QMainWindow):
         debug_mode = settings.value(_KEY_DEBUG_MODE, False, type=bool)
 
         # Suppress intermediate toggled signals while restoring state.
-        self._ui.actionShowSystemLog.blockSignals(True)
-        self._ui.actionDebugMode.blockSignals(True)
+        self.ui.actionShowSystemLog.blockSignals(True)
+        self.ui.actionDebugMode.blockSignals(True)
 
-        self._ui.actionShowSystemLog.setChecked(show_log)
-        self._ui.actionDebugMode.setChecked(debug_mode)
+        self.ui.actionShowSystemLog.setChecked(show_log)
+        self.ui.actionDebugMode.setChecked(debug_mode)
         self._set_log_tab_visible(show_log)
         if debug_mode:
             logging.getLogger().setLevel(logging.DEBUG)
 
-        self._ui.actionShowSystemLog.blockSignals(False)
-        self._ui.actionDebugMode.blockSignals(False)
+        self.ui.actionShowSystemLog.blockSignals(False)
+        self.ui.actionDebugMode.blockSignals(False)
 
     def _save_developer_settings(self) -> None:
         settings = QSettings()
-        settings.setValue(_KEY_SHOW_LOG, self._ui.actionShowSystemLog.isChecked())
-        settings.setValue(_KEY_DEBUG_MODE, self._ui.actionDebugMode.isChecked())
+        settings.setValue(_KEY_SHOW_LOG, self.ui.actionShowSystemLog.isChecked())
+        settings.setValue(_KEY_DEBUG_MODE, self.ui.actionDebugMode.isChecked())
 
     def _set_log_tab_visible(self, visible: bool) -> None:
-        idx = self._ui.mainTabs.indexOf(self._ui.tabSystemLog)
-        self._ui.mainTabs.setTabVisible(idx, visible)
+        idx = self.ui.mainTabs.indexOf(self.ui.tabSystemLog)
+        self.ui.mainTabs.setTabVisible(idx, visible)
 
     # ------------------------------------------------------------------
     # Slots
@@ -98,8 +99,8 @@ class MainAppWindow(QMainWindow):
 
     def _on_debug_mode_toggled(self, checked: bool) -> None:
         logging.getLogger().setLevel(logging.DEBUG if checked else logging.INFO)
-        if checked and not self._ui.actionShowSystemLog.isChecked():
-            self._ui.actionShowSystemLog.setChecked(True)
+        if checked and not self.ui.actionShowSystemLog.isChecked():
+            self.ui.actionShowSystemLog.setChecked(True)
 
     def _on_about(self) -> None:
         QMessageBox.about(self, "About Nuclear Lab Digitizer", _ABOUT_TEXT)

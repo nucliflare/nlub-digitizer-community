@@ -39,9 +39,18 @@ class Digitizer:
         backend: DigitizerBackend,
         ids_backend: IDSBackend | None = None,
     ) -> None:
+        self._backend = backend
+        self._ids_backend = ids_backend
         self.scope = Scope(backend)
         self.mca   = MultiChannelAnalyzer(backend)
         self.hv: HVSupply | None = HVSupply(ids_backend) if ids_backend else None
+
+    def close(self) -> None:
+        if self.hv is not None:
+            self.hv.safe_shutdown()
+        self._backend.close()
+        if self._ids_backend is not None:
+            self._ids_backend.close()
 
     @classmethod
     def from_grpc(

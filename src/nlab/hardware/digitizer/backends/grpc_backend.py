@@ -33,8 +33,11 @@ class GrpcDigitizerBackend(DigitizerBackend):
         port: int = 50050,
     ) -> None:
         self._ch = channel
-        gchannel = grpc.insecure_channel(f"{hostname}:{port}")
-        self._stub = settings_pb2_grpc.EngineStub(gchannel)
+        self._gchannel = grpc.insecure_channel(f"{hostname}:{port}")
+        self._stub = settings_pb2_grpc.EngineStub(self._gchannel)
+
+    def close(self) -> None:
+        self._gchannel.close()
 
     # ------------------------------------------------------------------
     # Internal helpers — the only place gRPC types appear in this file

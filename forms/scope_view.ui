@@ -358,7 +358,7 @@
    <item>
     <layout class="QVBoxLayout" name="waveformLayout">
      <item>
-      <widget class="PlotWidget" name="plotWaveform" native="true">
+      <widget class="NLabPlotWidget" name="plotWaveform" native="true">
        <property name="minimumSize">
         <size>
          <width>550</width>
@@ -373,9 +373,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>PlotWidget</class>
+   <class>NLabPlotWidget</class>
    <extends>QWidget</extends>
-   <header>pyqtgraph</header>
+   <header>nlab.views.plot_viewbox</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

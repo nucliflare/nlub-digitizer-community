@@ -45,6 +45,17 @@
        </layout>
       </widget>
 
+      <!-- ── Power Supply tab (inner channel tabs added programmatically) ── -->
+      <widget class="QWidget" name="tabPSU">
+       <attribute name="title"><string>Power Supply</string></attribute>
+       <layout class="QVBoxLayout" name="layoutTabPSU">
+        <property name="leftMargin"><number>0</number></property>
+        <property name="topMargin"><number>0</number></property>
+        <property name="rightMargin"><number>0</number></property>
+        <property name="bottomMargin"><number>0</number></property>
+       </layout>
+      </widget>
+
       <!-- ── System Log tab ───────────────────────────────────── -->
       <widget class="QWidget" name="tabSystemLog">
        <attribute name="title"><string>System Log</string></attribute>

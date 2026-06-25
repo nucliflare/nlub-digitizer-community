@@ -31,8 +31,11 @@ class GrpcIDSBackend(IDSBackend):
         port: int = 50040,
     ) -> None:
         self._ch = channel
-        gchannel = grpc.insecure_channel(f"{hostname}:{port}")
-        self._stub = IDS_pb2_grpc.IDSServerStub(gchannel)
+        self._gchannel = grpc.insecure_channel(f"{hostname}:{port}")
+        self._stub = IDS_pb2_grpc.IDSServerStub(self._gchannel)
+
+    def close(self) -> None:
+        self._gchannel.close()
 
     def _reg(
         self,

@@ -3,8 +3,12 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import TypedDict
 
+import logging
+
 from .backends.base import IDSBackend
 from .scope import ParameterSpec, RangeSpec, ListSpec
+
+log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +198,23 @@ class HVSupply:
 
     def get_temp_digital(self) -> float:
         return self._b.get_temp_digital()
+
+    # ---- safety ----
+
+    def safe_shutdown(self) -> None:
+        """Ramp HV to minimum and disable SiPM. Call before closing the connection."""
+        min_hv = HV_PARAMETER_SPECS[HVParam.HV_VOLTAGE].min_val  # type: ignore[union-attr]
+        try:
+            log.info("Shutting down HV supply: setting HV to %.1f V", min_hv)
+            self._b.set_hv_voltage(min_hv)
+        except Exception:
+            log.exception("Failed to ramp down HV voltage")
+        if self.sipm_available():
+            try:
+                log.info("Shutting down HV supply: disabling SiPM")
+                self._b.set_sipm_enable(0)
+            except Exception:
+                log.exception("Failed to disable SiPM")
 
     # ---- GUI helpers ----
 

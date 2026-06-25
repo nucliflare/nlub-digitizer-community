@@ -8,10 +8,10 @@ import numpy as np
 
 from .backends.base import ScopeBackend
 
-
 # ---------------------------------------------------------------------------
 # Parameter spec types — used for validation and GUI settings generation
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class RangeSpec:
@@ -22,9 +22,7 @@ class RangeSpec:
 
     def validate(self, val: int | float, name: str = "") -> None:
         if not (self.min_val <= val <= self.max_val):
-            raise ValueError(
-                f"{name}: {val} out of range [{self.min_val}, {self.max_val}]"
-            )
+            raise ValueError(f"{name}: {val} out of range [{self.min_val}, {self.max_val}]")
         if self.step and isinstance(val, int) and isinstance(self.step, int):
             if (val - self.min_val) % self.step != 0:
                 raise ValueError(f"{name}: {val} not aligned to step {self.step}")
@@ -47,22 +45,23 @@ ParameterSpec = Union[RangeSpec, ListSpec]
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class TriggerMode(IntEnum):
-    ANY_ABOVE    = 0
-    ANY_BELOW    = 1
+    ANY_ABOVE = 0
+    ANY_BELOW = 1
     FALLING_EDGE = 2
-    RISING_EDGE  = 3
+    RISING_EDGE = 3
 
 
 class ScopeParam(IntEnum):
     # Values equal the corresponding vdpp_config.json "scope" section widget id
-    TRIGGER_LEVEL      = 1
+    TRIGGER_LEVEL = 1
     PRETRIGGER_SAMPLES = 2
-    FRAME_SAMPLES      = 3
-    EDGE_MODE          = 4
-    DAC_VALUE          = 5
+    FRAME_SAMPLES = 3
+    EDGE_MODE = 4
+    DAC_VALUE = 5
     # Internal — no JSON widget id (scope ids 6/7 are software DMA config, not this flag)
-    DMA_ENABLED        = 100
+    DMA_ENABLED = 100
 
 
 # ---------------------------------------------------------------------------
@@ -71,24 +70,25 @@ class ScopeParam(IntEnum):
 
 PARAMETER_SPECS: dict[ScopeParam, ParameterSpec] = {
     # int16_t (hw_def: MIN–MAX, step 1)
-    ScopeParam.TRIGGER_LEVEL:      RangeSpec(min_val=-32768, max_val=32767, step=1, default=0),
+    ScopeParam.TRIGGER_LEVEL: RangeSpec(min_val=-32768, max_val=32767, step=1, default=0),
     # uint16_t (hw_def: 0–2046, step 2)
-    ScopeParam.PRETRIGGER_SAMPLES: RangeSpec(min_val=0,      max_val=2046,  step=2, default=32),
+    ScopeParam.PRETRIGGER_SAMPLES: RangeSpec(min_val=0, max_val=2040, step=8, default=32),
     # uint16_t (hw_def: 0–16382, step 2)
-    ScopeParam.FRAME_SAMPLES:      RangeSpec(min_val=0,      max_val=16382, step=2, default=128),
-    ScopeParam.EDGE_MODE:          ListSpec(
+    ScopeParam.FRAME_SAMPLES: RangeSpec(min_val=0, max_val=16382, step=8, default=1024),
+    ScopeParam.EDGE_MODE: ListSpec(
         items=tuple(m.name for m in TriggerMode),
-        default=TriggerMode.RISING_EDGE.name,
+        default=TriggerMode.ANY_BELOW,
     ),
     # uint16_t (hw_def: MIN–MAX, step 1)
-    ScopeParam.DAC_VALUE:          RangeSpec(min_val=0, max_val=65535, step=1, default=512),
-    ScopeParam.DMA_ENABLED:        ListSpec(items=(False, True), default=False),
+    ScopeParam.DAC_VALUE: RangeSpec(min_val=0, max_val=1024, step=1, default=512),
+    ScopeParam.DMA_ENABLED: ListSpec(items=(False, True), default=False),
 }
 
 
 # ---------------------------------------------------------------------------
 # TypedDict for GUI settings consumers
 # ---------------------------------------------------------------------------
+
 
 class ScopeSettingEntry(TypedDict):
     id: int
@@ -98,6 +98,7 @@ class ScopeSettingEntry(TypedDict):
 # ---------------------------------------------------------------------------
 # Scope
 # ---------------------------------------------------------------------------
+
 
 class Scope:
     """High-level scope interface. All validation lives here; the backend is
@@ -190,9 +191,9 @@ class Scope:
         IDs match vdpp_config.json scope section widget ids.
         """
         return [
-            ScopeSettingEntry(id=int(ScopeParam.TRIGGER_LEVEL),      value=self.get_trigger_level()),
-            ScopeSettingEntry(id=int(ScopeParam.PRETRIGGER_SAMPLES),  value=self.get_pretrigger_samples()),
-            ScopeSettingEntry(id=int(ScopeParam.FRAME_SAMPLES),       value=self.get_frame_samples()),
-            ScopeSettingEntry(id=int(ScopeParam.EDGE_MODE),           value=self.get_trigger_mode().name),
-            ScopeSettingEntry(id=int(ScopeParam.DAC_VALUE),           value=self.get_dac_value()),
+            ScopeSettingEntry(id=int(ScopeParam.TRIGGER_LEVEL), value=self.get_trigger_level()),
+            ScopeSettingEntry(id=int(ScopeParam.PRETRIGGER_SAMPLES), value=self.get_pretrigger_samples()),
+            ScopeSettingEntry(id=int(ScopeParam.FRAME_SAMPLES), value=self.get_frame_samples()),
+            ScopeSettingEntry(id=int(ScopeParam.EDGE_MODE), value=self.get_trigger_mode().name),
+            ScopeSettingEntry(id=int(ScopeParam.DAC_VALUE), value=self.get_dac_value()),
         ]

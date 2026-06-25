@@ -478,6 +478,9 @@ class IDSBackend(ABC):
     @abstractmethod
     def get_temp_digital(self) -> float: ...
 
+    def close(self) -> None:
+        pass
+
 
 class DigitizerBackend(ScopeBackend, MCABackend, ABC):
     """Combined backend that satisfies both scope and MCA interfaces.
@@ -485,4 +488,6 @@ class DigitizerBackend(ScopeBackend, MCABackend, ABC):
     All concrete backends (gRPC, IIO, …) should inherit from this class.
     IDSBackend is intentionally separate — it connects to a different server.
     """
-    pass
+
+    def close(self) -> None:
+        pass

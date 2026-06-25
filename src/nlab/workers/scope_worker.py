@@ -1,0 +1,39 @@
+from __future__ import annotations
+
+import logging
+
+import numpy as np
+from PySide6.QtCore import QObject, QRunnable, Signal
+
+from nlab.hardware.digitizer.scope import Scope
+
+log = logging.getLogger(__name__)
+
+
+class _FrameSignals(QObject):
+    ready = Signal(object)
+
+
+class ScopeWorker(QRunnable):
+    """Acquires a single scope frame off the GUI thread.
+
+    Emits ``signals.ready`` with ``[time_array, frame_array]`` on success,
+    or ``None`` on failure.  Auto-deletes after run.
+    """
+
+    def __init__(self, scope: Scope) -> None:
+        super().__init__()
+        self.signals = _FrameSignals()
+        self._scope = scope
+        self.setAutoDelete(True)
+
+    def run(self) -> None:
+        try:
+            frame_samples = self._scope.get_frame_samples()
+            raw_frame = self._scope.acquire_frame()
+            frame = raw_frame[: int(frame_samples) // 8]
+            raw_time = np.arange(0, 8 * len(frame), 8)
+            self.signals.ready.emit([raw_time, frame])
+        except Exception:
+            log.exception("Frame acquisition failed")
+            self.signals.ready.emit(None)
