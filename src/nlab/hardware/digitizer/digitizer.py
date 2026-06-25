@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-from .backends.base import DigitizerBackend
+from .backends.base import DigitizerBackend, IDSBackend
 from .backends.grpc_backend import GrpcDigitizerBackend
-from .mca import MultiChannelAnalyzer
 from .scope import Scope
+from .mca import MultiChannelAnalyzer
+from .hv import HVSupply
 
 
 class Digitizer:
     """Entry point for instrument access.
 
     Construct via a factory classmethod, then access subsystems through
-    .scope and .mca. The same backend instance is shared by both.
+    .scope, .mca, and .hv.  The scope/mca share one gRPC service
+    (DPP_reg_access on port 50050); the HV supply uses a separate IDS
+    service (IDS_access on port 50040) on the **same physical device**.
+    The split is a legacy issue that will be merged in a future firmware
+    revision.
 
     Hardware I/O uses explicit get_*/set_* methods rather than properties.
     This makes the I/O cost visible at call sites and avoids surprising side
@@ -20,22 +25,23 @@ class Digitizer:
 
         d = Digitizer.from_grpc(channel=1)
         d.scope.set_trigger_level(5000)
-        d.scope.start()
-        frame = d.scope.acquire_frame()
-
         d.mca.set_energy_bin(4)
-        d.mca.start()
-        spectrum = d.mca.acquire_spectrum()
+        d.hv.set_voltage(30.0)
 
-    Example — future IIO (uncomment from_iio when available)::
+    Example — without HV (e.g. bench testing DPP only)::
 
-        d = Digitizer.from_iio(channel=1)
+        d = Digitizer.from_grpc(channel=1, with_ids=False)
+        # d.hv is None
     """
 
-    def __init__(self, backend: DigitizerBackend) -> None:
-        self._backend = backend
+    def __init__(
+        self,
+        backend: DigitizerBackend,
+        ids_backend: IDSBackend | None = None,
+    ) -> None:
         self.scope = Scope(backend)
-        self.mca = MultiChannelAnalyzer(backend)
+        self.mca   = MultiChannelAnalyzer(backend)
+        self.hv: HVSupply | None = HVSupply(ids_backend) if ids_backend else None
 
     @classmethod
     def from_grpc(
@@ -43,23 +49,21 @@ class Digitizer:
         channel: int,
         hostname: str = "192.168.10.20",
         port: int = 50050,
-        connect_timeout: float = 2.0,
+        *,
+        ids_port: int = 50040,
+        with_ids: bool = True,
     ) -> Digitizer:
-        return cls(GrpcDigitizerBackend(channel, hostname, port, connect_timeout))
+        """Create a Digitizer backed by gRPC.
 
-    def close(self) -> None:
-        """Close all hardware connections owned by this digitizer."""
-        self._backend.close()
+        Both the DPP and IDS services run on the same device (same
+        hostname, different ports).  Pass with_ids=False to skip the
+        IDS connection (d.hv will be None).
+        """
+        from .backends.grpc_ids_backend import GrpcIDSBackend
 
-    def print_status(self) -> None:
-        """Print full digitizer configuration (scope + MCA) to stdout."""
-        print("═══════════════════════════════════════════════")
-        print("  Digitizer status")
-        print("═══════════════════════════════════════════════")
-        self.scope.print_status()
-        print()
-        self.mca.print_status()
-        print("═══════════════════════════════════════════════")
+        dpp = GrpcDigitizerBackend(channel, hostname, port)
+        ids = GrpcIDSBackend(channel, hostname, ids_port) if with_ids else None
+        return cls(dpp, ids)
 
     # @classmethod
     # def from_iio(

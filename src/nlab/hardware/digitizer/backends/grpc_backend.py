@@ -4,26 +4,23 @@ Replaces VDPP_Engine_gRPC for the digitizer layer. Does not inherit from
 VDPP_Engine_Base — it implements DigitizerBackend directly.
 """
 
-import logging
 from typing import Any
 
 import grpc
 import numpy as np
 
-from nlab.hardware.grpc.generated import base_pb2 as bsp
-from nlab.hardware.grpc.generated import settings_pb2 as sp
-from nlab.hardware.grpc.generated import settings_pb2_grpc
+import settings_pb2 as sp
+import settings_pb2_grpc
+import base_pb2 as bsp
 
 from .base import DigitizerBackend
-
-_log = logging.getLogger(__name__)
 
 # Protobuf registers fields and enum values at runtime via reflection; Pylance
 # cannot see them as static attributes or constructor kwargs. Typing as Any
 # keeps all _CMD.VDPP_* accesses and _Msg/_Val constructor calls clean.
-_CMD: Any = sp.RegisterMessage  # type: ignore[attr-defined]
-_Msg: Any = sp.RegisterMessage  # type: ignore[attr-defined]
-_Val: Any = bsp.ValueMessage  # type: ignore[attr-defined]
+_CMD: Any = sp.RegisterMessage
+_Msg: Any = sp.RegisterMessage
+_Val: Any = bsp.ValueMessage
 
 
 class GrpcDigitizerBackend(DigitizerBackend):
@@ -32,54 +29,16 @@ class GrpcDigitizerBackend(DigitizerBackend):
     def __init__(
         self,
         channel: int,
-        hostname: str = "192.168.3.10",
+        hostname: str = "192.168.10.20",
         port: int = 50050,
-        connect_timeout: float = 2.0,
     ) -> None:
         self._ch = channel
-        self._hostname = hostname
-        self._port = port
-        address = f"{hostname}:{port}"
-
-        gchannel = grpc.insecure_channel(address)
-        try:
-            grpc.channel_ready_future(gchannel).result(timeout=connect_timeout)
-        except grpc.FutureTimeoutError:
-            gchannel.close()
-            _log.error(
-                "Connection to %s (channel %d) timed out after %.1f s",
-                address,
-                channel,
-                connect_timeout,
-            )
-            raise ConnectionError(f"gRPC channel to {address} not ready after {connect_timeout} s")
-        except grpc.RpcError as exc:
-            gchannel.close()
-            _log.error("Connection to %s (channel %d) failed: %s", address, channel, exc)
-            raise ConnectionError(f"gRPC connection to {address} failed: {exc}") from exc
-        except Exception as exc:
-            gchannel.close()
-            _log.error("Unexpected error connecting to %s (channel %d): %s", address, channel, exc)
-            raise
-
-        _log.info("Connected to %s (channel %d)", address, channel)
-        self._gchannel = gchannel
+        gchannel = grpc.insecure_channel(f"{hostname}:{port}")
         self._stub = settings_pb2_grpc.EngineStub(gchannel)
-
-    def close(self) -> None:
-        self._gchannel.close()
-        _log.info("Disconnected from %s:%d (channel %d)", self._hostname, self._port, self._ch)
 
     # ------------------------------------------------------------------
     # Internal helpers — the only place gRPC types appear in this file
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def _cmd_name(cmd: int) -> str:
-        try:
-            return _CMD.Command.Name(cmd)  # type: ignore[attr-defined]
-        except (ValueError, AttributeError):
-            return str(cmd)
 
     def _reg(
         self,
@@ -98,35 +57,25 @@ class GrpcDigitizerBackend(DigitizerBackend):
         if not no_channel:
             kw["channel"] = self._ch
 
-        name = self._cmd_name(cmd)
-        ch_label = "global" if no_channel else str(self._ch)
-        kw_str = "  ".join(f"{k}={v}" for k, v in kw.items() if k != "channel")
-        _log.debug("TX  %-45s  ch=%-6s  %s", name, ch_label, kw_str)
-
-        resp = self._stub.DPP_reg_access(_Msg(command=cmd, value=_Val(**kw)))
+        resp = self._stub.DPP_reg_access(
+            _Msg(command=cmd, value=_Val(**kw))
+        )
         if resp.WhichOneof("response") == "error_response":
-            _log.debug("ERR %-45s  %s", name, resp.error_response.message)
             raise RuntimeError(resp.error_response.message)
         return resp
 
     # Typed scalar extractors — eliminate int|float ambiguity at every call site
     def _int(self, cmd: int, **kw: object) -> int:
         resp = self._reg(cmd, **kw)  # type: ignore[arg-type]
-        val = int(getattr(resp.value, resp.value.WhichOneof("value")))
-        _log.debug("RX  %-45s  → %d", self._cmd_name(cmd), val)
-        return val
+        return int(getattr(resp.value, resp.value.WhichOneof("value")))
 
     def _float(self, cmd: int, **kw: object) -> float:
         resp = self._reg(cmd, **kw)  # type: ignore[arg-type]
-        val = float(getattr(resp.value, resp.value.WhichOneof("value")))
-        _log.debug("RX  %-45s  → %g", self._cmd_name(cmd), val)
-        return val
+        return float(getattr(resp.value, resp.value.WhichOneof("value")))
 
     def _bool(self, cmd: int, **kw: object) -> bool:
         resp = self._reg(cmd, **kw)  # type: ignore[arg-type]
-        val = bool(getattr(resp.value, resp.value.WhichOneof("value")))
-        _log.debug("RX  %-45s  → %s", self._cmd_name(cmd), val)
-        return val
+        return bool(getattr(resp.value, resp.value.WhichOneof("value")))
 
     # ------------------------------------------------------------------
     # ScopeBackend
@@ -318,16 +267,15 @@ class GrpcDigitizerBackend(DigitizerBackend):
         return np.asarray(resp.int32_array, dtype=np.int32)
 
     def set_lp_coeffs(self, coeffs: list[int]) -> None:
-        _log.debug("TX  %-45s  ch=%-6s  len=%d", "VDPP_dpp_set_lp_coeffs", self._ch, len(coeffs))
+        # Uploads custom FIR coefficients via RegisterMessage.int32_array.
         resp = self._stub.DPP_reg_access(
             _Msg(
-                command=_CMD.VDPP_dpp_set_lp_coeffs,  # type: ignore[attr-defined]
-                value=_Val(channel=self._ch),  # type: ignore[attr-defined]
+                command=_CMD.VDPP_dpp_set_lp_coeffs,
+                value=_Val(channel=self._ch),
                 int32_array=list(coeffs),
             )
         )
         if resp.WhichOneof("response") == "error_response":
-            _log.debug("ERR VDPP_dpp_set_lp_coeffs  %s", resp.error_response.message)
             raise RuntimeError(resp.error_response.message)
 
     # ---- IIR LP filter ----
@@ -359,16 +307,16 @@ class GrpcDigitizerBackend(DigitizerBackend):
 
     # ---- CRRC2 ----
 
-    def get_crrc2_c_delay(self) -> int:
+    def get_crrc2_Cdelay(self) -> int:
         return self._int(_CMD.VDPP_dpp_get_crrc2_Cdelay)
 
-    def set_crrc2_c_delay(self, val: int) -> None:
+    def set_crrc2_Cdelay(self, val: int) -> None:
         self._reg(_CMD.VDPP_dpp_set_crrc2_Cdelay, t_int32=val)
 
-    def get_crrc2_f_delay(self) -> int:
+    def get_crrc2_Fdelay(self) -> int:
         return self._int(_CMD.VDPP_dpp_get_crrc2_Fdelay)
 
-    def set_crrc2_f_delay(self, val: int) -> None:
+    def set_crrc2_Fdelay(self, val: int) -> None:
         self._reg(_CMD.VDPP_dpp_set_crrc2_Fdelay, t_int32=val)
 
     def get_crrc2_pzc_coeff(self) -> int:
@@ -385,34 +333,34 @@ class GrpcDigitizerBackend(DigitizerBackend):
     def set_trapez_enable(self, val: bool) -> None:
         self._reg(_CMD.VDPP_dpp_set_trapez_enable, t_int32=int(val))
 
-    def get_trapez_r(self) -> int:
+    def get_trapez_R(self) -> int:
         return self._int(_CMD.VDPP_dpp_get_trapez_R)
 
-    def set_trapez_r(self, val: int) -> None:
+    def set_trapez_R(self, val: int) -> None:
         self._reg(_CMD.VDPP_dpp_set_trapez_R, t_int32=val)
 
-    def get_trapez_m(self) -> int:
+    def get_trapez_M(self) -> int:
         return self._int(_CMD.VDPP_dpp_get_trapez_M)
 
-    def set_trapez_m(self, val: int) -> None:
+    def set_trapez_M(self, val: int) -> None:
         self._reg(_CMD.VDPP_dpp_set_trapez_M, t_int32=val)
 
-    def get_trapez_t(self) -> int:
+    def get_trapez_T(self) -> int:
         return self._int(_CMD.VDPP_dpp_get_trapez_T)
 
-    def set_trapez_t(self, val: int) -> None:
+    def set_trapez_T(self, val: int) -> None:
         self._reg(_CMD.VDPP_dpp_set_trapez_T, t_int32=val)
 
-    def get_trapez_e(self) -> int:
+    def get_trapez_E(self) -> int:
         return self._int(_CMD.VDPP_dpp_get_trapez_E)
 
-    def set_trapez_e(self, val: int) -> None:
+    def set_trapez_E(self, val: int) -> None:
         self._reg(_CMD.VDPP_dpp_set_trapez_E, t_int32=val)
 
-    def get_trapez_ft(self) -> int:
+    def get_trapez_FT(self) -> int:
         return self._int(_CMD.VDPP_dpp_get_trapez_FT)
 
-    def set_trapez_ft(self, val: int) -> None:
+    def set_trapez_FT(self, val: int) -> None:
         self._reg(_CMD.VDPP_dpp_set_trapez_FT, t_int32=val)
 
     # ---- CFD ----
@@ -509,20 +457,18 @@ class GrpcDigitizerBackend(DigitizerBackend):
         return np.asarray(resp.uint32_array, dtype=np.uint32)
 
     def read_waveform_banks(self) -> tuple[np.ndarray, np.ndarray]:
-        _log.debug("TX  %-45s  ch=%-6s", "VDPP_dpp_get_mem_frame", self._ch)
         resp = self._stub.DPP_reg_access(
             _Msg(
-                command=_CMD.VDPP_dpp_get_mem_frame,  # type: ignore[attr-defined]
-                value=_Val(channel=self._ch),  # type: ignore[attr-defined]
+                command=_CMD.VDPP_dpp_get_mem_frame,
+                value=_Val(channel=self._ch),
             )
         )
         if resp.WhichOneof("response") == "error_response":
-            _log.debug("ERR VDPP_dpp_get_mem_frame  %s", resp.error_response.message)
             raise RuntimeError(resp.error_response.message)
-        bank1 = np.asarray(resp.int32_array, dtype=np.int16)
-        bank2 = np.asarray(resp.int32_array2, dtype=np.int16)
-        _log.debug("RX  %-45s  → bank1=%d  bank2=%d samples", "VDPP_dpp_get_mem_frame", len(bank1), len(bank2))
-        return bank1, bank2
+        return (
+            np.asarray(resp.int32_array,  dtype=np.int16),
+            np.asarray(resp.int32_array2, dtype=np.int16),
+        )
 
     # ---- histogram ----
 

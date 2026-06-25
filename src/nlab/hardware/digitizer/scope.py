@@ -25,8 +25,9 @@ class RangeSpec:
             raise ValueError(
                 f"{name}: {val} out of range [{self.min_val}, {self.max_val}]"
             )
-        if self.step and (val - self.min_val) % self.step != 0:
-            raise ValueError(f"{name}: {val} not aligned to step {self.step}")
+        if self.step and isinstance(val, int) and isinstance(self.step, int):
+            if (val - self.min_val) % self.step != 0:
+                raise ValueError(f"{name}: {val} not aligned to step {self.step}")
 
 
 @dataclass(frozen=True)
@@ -69,16 +70,18 @@ class ScopeParam(IntEnum):
 # ---------------------------------------------------------------------------
 
 PARAMETER_SPECS: dict[ScopeParam, ParameterSpec] = {
-    # int16_t on wire (input.txt: VDPP_scope_set_trigger_level)
+    # int16_t (hw_def: MIN–MAX, step 1)
     ScopeParam.TRIGGER_LEVEL:      RangeSpec(min_val=-32768, max_val=32767, step=1, default=0),
-    ScopeParam.PRETRIGGER_SAMPLES: RangeSpec(min_val=0,      max_val=2040,  step=8, default=32),
-    ScopeParam.FRAME_SAMPLES:      RangeSpec(min_val=128,    max_val=16376, step=8, default=128),
+    # uint16_t (hw_def: 0–2046, step 2)
+    ScopeParam.PRETRIGGER_SAMPLES: RangeSpec(min_val=0,      max_val=2046,  step=2, default=32),
+    # uint16_t (hw_def: 0–16382, step 2)
+    ScopeParam.FRAME_SAMPLES:      RangeSpec(min_val=0,      max_val=16382, step=2, default=128),
     ScopeParam.EDGE_MODE:          ListSpec(
         items=tuple(m.name for m in TriggerMode),
         default=TriggerMode.RISING_EDGE.name,
     ),
-    # uint16_t on wire; config widget caps at 1024
-    ScopeParam.DAC_VALUE:          RangeSpec(min_val=0, max_val=1024, step=1, default=512),
+    # uint16_t (hw_def: MIN–MAX, step 1)
+    ScopeParam.DAC_VALUE:          RangeSpec(min_val=0, max_val=65535, step=1, default=512),
     ScopeParam.DMA_ENABLED:        ListSpec(items=(False, True), default=False),
 }
 
@@ -178,21 +181,6 @@ class Scope:
     def acquire_frame(self) -> np.ndarray:
         """Read one captured frame. Returns int16 array of shape (n_samples,)."""
         return self._b.read_frame()
-
-    # ---- diagnostics ----
-
-    def print_status(self) -> None:
-        """Print current scope configuration to stdout."""
-        print("── Scope ───────────────────────────────────────")
-        print(f"  ip_version        : {self.get_ip_version()}")
-        print(f"  mem_frame_size    : {self.get_mem_frame_size()} samples")
-        print(f"  enabled           : {self.get_enable()}")
-        print(f"  dma_enabled       : {self.get_dma_enable()}")
-        print(f"  trigger_level     : {self.get_trigger_level()}")
-        print(f"  trigger_mode      : {self.get_trigger_mode().name}")
-        print(f"  pretrigger        : {self.get_pretrigger_samples()} samples")
-        print(f"  frame_samples     : {self.get_frame_samples()} samples")
-        print(f"  dac_value         : {self.get_dac_value()}")
 
     # ---- GUI helpers ----
 

@@ -3,195 +3,382 @@
  <class>ScopeView</class>
  <widget class="QWidget" name="ScopeView">
   <property name="geometry">
-   <rect><x>0</x><y>0</y><width>900</width><height>600</height></rect>
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>900</width>
+    <height>600</height>
+   </rect>
   </property>
   <property name="windowTitle">
    <string>Scope</string>
   </property>
-  <layout class="QHBoxLayout" name="horizontalLayout">
-   <property name="spacing"><number>6</number></property>
-
-   <!-- ── Left: controls ─────────────────────────────────────── -->
+  <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,1">
+   <property name="spacing">
+    <number>6</number>
+   </property>
    <item>
-    <widget class="QWidget" name="controlPanel">
-     <property name="maximumSize">
-      <size><width>340</width><height>16777215</height></size>
-     </property>
-     <layout class="QVBoxLayout" name="controlLayout">
-
-      <item>
-       <widget class="QGroupBox" name="groupTrigger">
-        <property name="title"><string>Trigger</string></property>
-        <layout class="QFormLayout" name="formTrigger">
-
-         <item row="0" column="0">
-          <widget class="QLabel" name="labelTriggerLevel">
-           <property name="text"><string>Level:</string></property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <layout class="QHBoxLayout" name="layoutTriggerLevel">
-           <item>
-            <widget class="QSpinBox" name="spinTriggerLevel">
-             <property name="minimum"><number>-32768</number></property>
-             <property name="maximum"><number>32767</number></property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QSlider" name="sliderTriggerLevel">
-             <property name="minimum"><number>-32768</number></property>
-             <property name="maximum"><number>32767</number></property>
-             <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-
-         <item row="1" column="0">
-          <widget class="QLabel" name="labelTriggerMode">
-           <property name="text"><string>Mode:</string></property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QComboBox" name="comboTriggerMode">
-           <item><property name="text"><string>Any above</string></property></item>
-           <item><property name="text"><string>Any below</string></property></item>
-           <item><property name="text"><string>Falling edge</string></property></item>
-           <item><property name="text"><string>Rising edge</string></property></item>
-          </widget>
-         </item>
-
-         <item row="2" column="0">
-          <widget class="QLabel" name="labelDacValue">
-           <property name="text"><string>DAC offset:</string></property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <layout class="QHBoxLayout" name="layoutDacValue">
-           <item>
-            <widget class="QSpinBox" name="spinDacValue">
-             <property name="minimum"><number>0</number></property>
-             <property name="maximum"><number>1024</number></property>
-             <property name="value"><number>512</number></property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QSlider" name="sliderDacValue">
-             <property name="minimum"><number>0</number></property>
-             <property name="maximum"><number>1024</number></property>
-             <property name="value"><number>512</number></property>
-             <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-
-        </layout>
-       </widget>
-      </item>
-
-      <item>
-       <widget class="QGroupBox" name="groupTiming">
-        <property name="title"><string>Timing</string></property>
-        <layout class="QFormLayout" name="formTiming">
-         <item row="0" column="0">
-          <widget class="QLabel" name="labelPretrigger">
-           <property name="text"><string>Pretrigger (samp):</string></property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QSpinBox" name="spinPretrigger">
-           <property name="minimum"><number>0</number></property>
-           <property name="maximum"><number>2040</number></property>
-           <property name="singleStep"><number>8</number></property>
-           <property name="value"><number>32</number></property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="labelFrameSamples">
-           <property name="text"><string>Frame (samp):</string></property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QSpinBox" name="spinFrameSamples">
-           <property name="minimum"><number>128</number></property>
-           <property name="maximum"><number>16376</number></property>
-           <property name="singleStep"><number>8</number></property>
-           <property name="value"><number>128</number></property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-
-      <item>
-       <widget class="QGroupBox" name="groupAcquisition">
-        <property name="title"><string>Acquisition</string></property>
-        <layout class="QVBoxLayout" name="acquisitionLayout">
-         <item>
-          <widget class="QCheckBox" name="cbDmaEnable">
-           <property name="text"><string>DMA enable</string></property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="btnLayout">
-           <item>
-            <widget class="QPushButton" name="btnStart">
-             <property name="text"><string>Start</string></property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnStop">
-             <property name="enabled"><bool>false</bool></property>
-             <property name="text"><string>Stop</string></property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <widget class="QPushButton" name="btnAcquireFrame">
-           <property name="text"><string>Acquire Frame</string></property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-
-      <item>
-       <spacer name="verticalSpacer">
-        <property name="orientation"><enum>Qt::Orientation::Vertical</enum></property>
-        <property name="sizeHint" stdset="0">
-         <size><width>20</width><height>40</height></size>
-        </property>
-       </spacer>
-      </item>
-
-     </layout>
-    </widget>
+    <layout class="QVBoxLayout" name="controlLayout">
+     <item>
+      <widget class="QGroupBox" name="groupTrigger">
+       <property name="title">
+        <string>Trigger</string>
+       </property>
+       <layout class="QFormLayout" name="formTrigger">
+        <item row="0" column="0">
+         <widget class="QLabel" name="labelTriggerLevel">
+          <property name="text">
+           <string>Level:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <layout class="QHBoxLayout" name="layoutTriggerLevel">
+          <item>
+           <widget class="QSpinBox" name="spinTriggerLevel">
+            <property name="minimum">
+             <number>-32768</number>
+            </property>
+            <property name="maximum">
+             <number>32767</number>
+            </property>
+            <property name="stepType">
+             <enum>QAbstractSpinBox::StepType::DefaultStepType</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSlider" name="sliderTriggerLevel">
+            <property name="minimum">
+             <number>-32768</number>
+            </property>
+            <property name="maximum">
+             <number>32767</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="labelTriggerMode">
+          <property name="text">
+           <string>Mode:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="comboTriggerMode">
+          <item>
+           <property name="text">
+            <string>Any above</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Any below</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Falling edge</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Rising edge</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="labelDacValue">
+          <property name="text">
+           <string>DAC offset:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <layout class="QHBoxLayout" name="layoutDacValue">
+          <item>
+           <widget class="QSpinBox" name="spinDacValue">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>1024</number>
+            </property>
+            <property name="value">
+             <number>512</number>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSlider" name="sliderDacValue">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>1024</number>
+            </property>
+            <property name="value">
+             <number>512</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="groupTiming">
+       <property name="title">
+        <string>Timing</string>
+       </property>
+       <layout class="QFormLayout" name="formTiming">
+        <item row="0" column="0">
+         <widget class="QLabel" name="labelPretrigger">
+          <property name="text">
+           <string>Pretrigger (samp):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QSpinBox" name="spinPretrigger">
+          <property name="minimum">
+           <number>0</number>
+          </property>
+          <property name="maximum">
+           <number>2040</number>
+          </property>
+          <property name="singleStep">
+           <number>8</number>
+          </property>
+          <property name="value">
+           <number>32</number>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="labelFrameSamples">
+          <property name="text">
+           <string>Frame (samp):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QSpinBox" name="spinFrameSamples">
+          <property name="minimum">
+           <number>128</number>
+          </property>
+          <property name="maximum">
+           <number>16376</number>
+          </property>
+          <property name="singleStep">
+           <number>8</number>
+          </property>
+          <property name="value">
+           <number>128</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="groupAcquisition">
+       <property name="title">
+        <string>Acquisition</string>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <widget class="QCheckBox" name="cbDmaEnable">
+          <property name="text">
+           <string>DMA enable</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_3">
+          <item>
+           <widget class="QLabel" name="label">
+            <property name="text">
+             <string>Time [s]</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="spinTime">
+            <property name="maximum">
+             <number>36000</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="btnLayout">
+          <item>
+           <widget class="QPushButton" name="btnStart">
+            <property name="text">
+             <string>Start</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnStop">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>Stop</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnAcquireFrame">
+          <property name="text">
+           <string>Acquire Frame</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="groupDisplay">
+       <property name="title">
+        <string>Display</string>
+       </property>
+       <layout class="QFormLayout" name="formDisplay">
+        <item row="0" column="0">
+         <widget class="QLabel" name="labelDisplayMode">
+          <property name="text">
+           <string>Mode:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QComboBox" name="comboDisplayMode">
+          <item>
+           <property name="text">
+            <string>Persistence</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Raw</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="labelPersistence">
+          <property name="text">
+           <string>Persistence:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <layout class="QHBoxLayout" name="layoutPersistence">
+          <item>
+           <widget class="QDial" name="dialPersistence">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>999</number>
+            </property>
+            <property name="value">
+             <number>900</number>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>48</width>
+              <height>48</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelPersistenceValue">
+            <property name="text">
+             <string>0.900</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="labelRefreshRate">
+          <property name="text">
+           <string>Refresh (Hz):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QSpinBox" name="spinRefreshRate">
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>60</number>
+          </property>
+          <property name="value">
+           <number>10</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <spacer name="verticalSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
    </item>
-
-   <!-- ── Right: waveform display placeholder ────────────────── -->
    <item>
-    <widget class="QWidget" name="waveformDisplay">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-       <horstretch>1</horstretch><verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <layout class="QVBoxLayout" name="waveformLayout">
-      <item>
-       <widget class="QLabel" name="labelWaveformPlaceholder">
-        <property name="text"><string>Waveform display — replace with pyqtgraph PlotWidget</string></property>
-        <property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property>
-        <property name="frameShape"><enum>QFrame::Shape::StyledPanel</enum></property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
+    <layout class="QVBoxLayout" name="waveformLayout">
+     <item>
+      <widget class="PlotWidget" name="plotWaveform" native="true">
+       <property name="minimumSize">
+        <size>
+         <width>550</width>
+         <height>540</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
-
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>PlotWidget</class>
+   <extends>QWidget</extends>
+   <header>pyqtgraph</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
