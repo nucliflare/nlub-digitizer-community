@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSettings, Qt, QThread, QThreadPool
@@ -12,6 +13,8 @@ from nlab.hardware.digitizer.digitizer import Digitizer
 
 if TYPE_CHECKING:
     from nlab.app import MainAppWindow
+
+log = logging.getLogger(__name__)
 
 
 class MainWindowController:
@@ -35,9 +38,11 @@ class MainWindowController:
         self._channels = channels
         self._devices: list[Digitizer] = []
 
+        log.info("Connecting to %s:%d, %d channel(s)", host, port, channels)
         for ch in range(1, 1 + self._channels):
             device = Digitizer.from_grpc(channel=ch, hostname=self._host, port=self._port)
             self._devices.append(device)
+        log.info("All %d device(s) connected", len(self._devices))
 
         self._scope_controllers: list[ScopeController] = []
         self._mca_controllers: list[MCAController] = []
@@ -50,6 +55,8 @@ class MainWindowController:
         self._build_channel_docks()
         self._restore_dock_state()
         self._connect_signals()
+        log.info("UI initialized, %d scope / %d MCA / %d PSU controllers",
+                 len(self._scope_controllers), len(self._mca_controllers), len(self._psu_controllers))
 
     # ------------------------------------------------------------------
     # Dock construction
@@ -94,13 +101,14 @@ class MainWindowController:
         for idx, device in enumerate(self._devices):
             ch_label = f"Ch {idx + 1}"
 
-            scope_ctrl = ScopeController(device.scope)
+            ch = idx + 1
+            scope_ctrl = ScopeController(device.scope, scope_dma=device.scope_dma, channel=ch)
             self._scope_controllers.append(scope_ctrl)
-            scope_docks.append(self._make_dock(f"scope_ch{idx + 1}", ch_label, scope_ctrl))
+            scope_docks.append(self._make_dock(f"scope_ch{ch}", ch_label, scope_ctrl))
 
-            mca_ctrl = MCAController(device.mca)
+            mca_ctrl = MCAController(device.mca, mca_dma=device.mca_dma, channel=ch)
             self._mca_controllers.append(mca_ctrl)
-            mca_docks.append(self._make_dock(f"mca_ch{idx + 1}", ch_label, mca_ctrl))
+            mca_docks.append(self._make_dock(f"mca_ch{ch}", ch_label, mca_ctrl))
 
             if device.hv is not None:
                 psu_ctrl = PSUController(device.hv)
@@ -149,6 +157,7 @@ class MainWindowController:
 
     def shutdown(self) -> None:
         """Persist dock layout, stop all workers, close all devices."""
+        log.info("Shutdown: persisting dock state")
         self._save_dock_state()
 
         # 1. Stop scope timers — no new workers will be submitted
@@ -160,14 +169,20 @@ class MainWindowController:
             if ctrl._worker is not None:
                 ctrl._worker.request_stop.emit()
 
-        # 3. Stop MCA workers (blocking — app is shutting down)
+        # 3. Stop DMA workers (blocking — app is shutting down)
+        for ctrl in self._scope_controllers:
+            ctrl.stop_dma_sync()
+        for ctrl in self._mca_controllers:
+            ctrl.stop_dma_sync()
+
+        # 4. Stop MCA polling workers (blocking)
         for ctrl in self._mca_controllers:
             ctrl.stop_worker_sync()
 
-        # 4. Wait for in-flight scope workers to finish
+        # 5. Wait for in-flight scope workers to finish
         QThreadPool.globalInstance().waitForDone(3000)
 
-        # 5. Wait for PSU threads to exit, then drop references
+        # 6. Wait for PSU threads to exit, then drop references
         for ctrl in self._psu_controllers:
             if ctrl._worker_thread is not None:
                 if not ctrl._worker_thread.wait(3000):
@@ -181,10 +196,16 @@ class MainWindowController:
             self._thread.wait()
             self._thread = None
 
-        # 5. All workers done — safe to close hardware
+        # 7. All workers done — safe to close hardware
+        log.info("Shutdown: closing hardware connections")
         for device in self._devices:
             device.close()
         self._devices.clear()
+        log.info("Shutdown complete")
 
     def _connect_signals(self) -> None:
-        pass
+        self._window.ui.mainTabs.currentChanged.connect(self._on_tab_changed)
+
+    def _on_tab_changed(self, index: int) -> None:
+        tab_name = self._window.ui.mainTabs.tabText(index)
+        log.info("Active tab: %s", tab_name)

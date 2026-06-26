@@ -15,6 +15,10 @@ import base_pb2 as bsp
 
 from .base import DigitizerBackend
 
+import logging
+
+log = logging.getLogger(__name__)
+
 # Protobuf registers fields and enum values at runtime via reflection; Pylance
 # cannot see them as static attributes or constructor kwargs. Typing as Any
 # keeps all _CMD.VDPP_* accesses and _Msg/_Val constructor calls clean.
@@ -35,8 +39,10 @@ class GrpcDigitizerBackend(DigitizerBackend):
         self._ch = channel
         self._gchannel = grpc.insecure_channel(f"{hostname}:{port}")
         self._stub = settings_pb2_grpc.EngineStub(self._gchannel)
+        log.info("DPP gRPC backend: connected ch%d to %s:%d", channel, hostname, port)
 
     def close(self) -> None:
+        log.info("DPP gRPC backend: closing ch%d", self._ch)
         self._gchannel.close()
 
     # ------------------------------------------------------------------

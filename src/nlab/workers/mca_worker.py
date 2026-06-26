@@ -38,6 +38,7 @@ class MCAWorker(BaseWorker):
 
     readback = Signal(object)
     request_stop = Signal()
+    change_interval = Signal(int)
 
     def __init__(
         self,
@@ -53,7 +54,13 @@ class MCAWorker(BaseWorker):
         self._timer = QTimer()
         self._timer.timeout.connect(self._tick)
         self.request_stop.connect(self._stop)
+        self.change_interval.connect(self._set_interval)
         self._timer.start(self._interval_ms)
+
+    @Slot(int)
+    def _set_interval(self, ms: int) -> None:
+        if self._timer is not None:
+            self._timer.setInterval(ms)
 
     @Slot()
     def _stop(self) -> None:
@@ -85,11 +92,4 @@ class MCAWorker(BaseWorker):
         except Exception:
             log.exception("MCA readback failed")
             return
-        print(
-            f"[MCA] cps={rb.count_rate} dead={rb.pulse_deadtime} "
-            f"elapsed={rb.elapsed_time} lost={rb.events_lost} "
-            f"pileup={rb.pulse_pileup} overrange={rb.pulse_overrange} "
-            f"hist_len={len(rb.histogram)} dbg1_len={len(rb.debug1)} "
-            f"dbg2_len={len(rb.debug2)}"
-        )
         self.readback.emit(rb)

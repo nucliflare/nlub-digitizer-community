@@ -16,6 +16,10 @@ import base_pb2 as bsp
 
 from .base import IDSBackend
 
+import logging
+
+log = logging.getLogger(__name__)
+
 _CMD: Any = ids.IDSMessage
 _Msg: Any = ids.IDSMessage
 _Val: Any = bsp.ValueMessage
@@ -33,8 +37,10 @@ class GrpcIDSBackend(IDSBackend):
         self._ch = channel
         self._gchannel = grpc.insecure_channel(f"{hostname}:{port}")
         self._stub = IDS_pb2_grpc.IDSServerStub(self._gchannel)
+        log.info("IDS gRPC backend: connected ch%d to %s:%d", channel, hostname, port)
 
     def close(self) -> None:
+        log.info("IDS gRPC backend: closing ch%d", self._ch)
         self._gchannel.close()
 
     def _reg(

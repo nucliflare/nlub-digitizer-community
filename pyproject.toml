@@ -17,6 +17,7 @@ dependencies = [
     "fast_histogram>=0.11",
     "grpcio>=1.64",
     "protobuf>=5.26",
+    "pyzmq>=26.0",
 ]
 
 [project.optional-dependencies]

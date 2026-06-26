@@ -98,7 +98,11 @@ class MainAppWindow(QMainWindow):
         self._set_log_tab_visible(checked)
 
     def _on_debug_mode_toggled(self, checked: bool) -> None:
-        logging.getLogger().setLevel(logging.DEBUG if checked else logging.INFO)
+        level = logging.DEBUG if checked else logging.INFO
+        logging.getLogger().setLevel(level)
+        logging.getLogger(__name__).info("Debug mode %s (log level: %s)",
+                                         "enabled" if checked else "disabled",
+                                         logging.getLevelName(level))
         if checked and not self.ui.actionShowSystemLog.isChecked():
             self.ui.actionShowSystemLog.setChecked(True)
 

@@ -250,6 +250,34 @@
           </property>
          </widget>
         </item>
+        <item>
+         <layout class="QHBoxLayout" name="btnRecordLayout">
+          <item>
+           <widget class="QPushButton" name="btnRecord">
+            <property name="text">
+             <string>Record</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnRecordFile">
+            <property name="text">
+             <string>File...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblRecordingStatus">
+          <property name="text">
+           <string></string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </widget>
      </item>

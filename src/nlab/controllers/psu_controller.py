@@ -129,31 +129,35 @@ class PSUController(QWidget):
 
     def _connect_signals(self) -> None:
         if self._sipm_available:
-            self.ui.cbSipmEnable.toggled.connect(lambda v: self.hv.set_sipm_enable(int(v)))
+            self.ui.cbSipmEnable.toggled.connect(
+                lambda v: (log.debug("PSU: sipm_enable=%s", v), self.hv.set_sipm_enable(int(v))))
             self.ui.spinSipmVoltage.editingFinished.connect(
-                lambda: self.hv.set_sipm_voltage(self.ui.spinSipmVoltage.value())
-            )
-            self.ui.comboSipmCompensMode.currentIndexChanged.connect(lambda i: self.hv.set_sipm_compens_mode(i))
+                lambda: (log.debug("PSU: sipm_voltage=%.3f", self.ui.spinSipmVoltage.value()),
+                         self.hv.set_sipm_voltage(self.ui.spinSipmVoltage.value())))
+            self.ui.comboSipmCompensMode.currentIndexChanged.connect(
+                lambda i: (log.debug("PSU: sipm_compens_mode=%d", i), self.hv.set_sipm_compens_mode(i)))
             self.ui.spinSipmCompensCt.editingFinished.connect(
-                lambda: self.hv.set_sipm_compens_ct(self.ui.spinSipmCompensCt.value())
-            )
+                lambda: (log.debug("PSU: sipm_compens_ct=%.4f", self.ui.spinSipmCompensCt.value()),
+                         self.hv.set_sipm_compens_ct(self.ui.spinSipmCompensCt.value())))
             self.ui.spinSipmCompensTref.editingFinished.connect(
-                lambda: self.hv.set_sipm_compens_tref(self.ui.spinSipmCompensTref.value())
-            )
+                lambda: (log.debug("PSU: sipm_compens_tref=%.2f", self.ui.spinSipmCompensTref.value()),
+                         self.hv.set_sipm_compens_tref(self.ui.spinSipmCompensTref.value())))
 
         self.ui.spinHvVoltage.editingFinished.connect(
-            lambda: self.hv.set_hv_voltage(self.ui.spinHvVoltage.value())
-        )
+            lambda: (log.debug("PSU: hv_voltage=%.2f", self.ui.spinHvVoltage.value()),
+                     self.hv.set_hv_voltage(self.ui.spinHvVoltage.value())))
 
-        self.ui.comboHvCompensMode.currentIndexChanged.connect(lambda i: self.hv.set_hv_compens_mode(i))
+        self.ui.comboHvCompensMode.currentIndexChanged.connect(
+            lambda i: (log.debug("PSU: hv_compens_mode=%d", i), self.hv.set_hv_compens_mode(i)))
         self.ui.spinHvCompensCt.editingFinished.connect(
-            lambda: self.hv.set_hv_compens_ct(self.ui.spinHvCompensCt.value())
-        )
+            lambda: (log.debug("PSU: hv_compens_ct=%.4f", self.ui.spinHvCompensCt.value()),
+                     self.hv.set_hv_compens_ct(self.ui.spinHvCompensCt.value())))
         self.ui.spinHvCompensTref.editingFinished.connect(
-            lambda: self.hv.set_hv_compens_tref(self.ui.spinHvCompensTref.value())
-        )
+            lambda: (log.debug("PSU: hv_compens_tref=%.2f", self.ui.spinHvCompensTref.value()),
+                     self.hv.set_hv_compens_tref(self.ui.spinHvCompensTref.value())))
 
-        self.ui.comboTempDigitalEnable.currentIndexChanged.connect(lambda i: self.hv.set_temp_digital_enable(i))
+        self.ui.comboTempDigitalEnable.currentIndexChanged.connect(
+            lambda i: (log.debug("PSU: temp_digital_enable=%d", i), self.hv.set_temp_digital_enable(i)))
 
         self.ui.btnStartMonitor.clicked.connect(self._on_start_monitor)
         self.ui.btnStopMonitor.clicked.connect(self._on_stop_monitor)
@@ -167,10 +171,11 @@ class PSUController(QWidget):
         self._ts.clear()
         self._voltages.clear()
 
+        interval_ms = self.ui.spinRefreshRate.value()
         self._worker = PSUWorker(
             self.hv,
             read_sipm=self._sipm_available,
-            interval_ms=self.ui.spinRefreshRate.value(),
+            interval_ms=interval_ms,
         )
         self._worker_thread = QThread(self)
         self._worker.moveToThread(self._worker_thread)
@@ -184,6 +189,7 @@ class PSUController(QWidget):
         self.ui.btnStartMonitor.setEnabled(False)
         self.ui.btnStopMonitor.setEnabled(True)
         self._worker_thread.start()
+        log.info("PSU: monitoring started (interval %d ms, sipm=%s)", interval_ms, self._sipm_available)
 
     def _on_stop_monitor(self) -> None:
         if self._worker is not None:
@@ -197,6 +203,7 @@ class PSUController(QWidget):
             self._worker_thread = None
         self.ui.btnStartMonitor.setEnabled(True)
         self.ui.btnStopMonitor.setEnabled(False)
+        log.info("PSU: monitoring stopped")
 
     def _on_refresh_rate_changed(self, value: int) -> None:
         if self._worker is not None:

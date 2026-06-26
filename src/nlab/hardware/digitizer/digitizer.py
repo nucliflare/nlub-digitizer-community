@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .backends.base import DigitizerBackend, IDSBackend
 from .backends.grpc_backend import GrpcDigitizerBackend
+from .dma import McaDmaStreamer, ScopeDmaStreamer
 from .scope import Scope
 from .mca import MultiChannelAnalyzer
 from .hv import HVSupply
@@ -38,12 +39,16 @@ class Digitizer:
         self,
         backend: DigitizerBackend,
         ids_backend: IDSBackend | None = None,
+        scope_dma: ScopeDmaStreamer | None = None,
+        mca_dma: McaDmaStreamer | None = None,
     ) -> None:
         self._backend = backend
         self._ids_backend = ids_backend
         self.scope = Scope(backend)
         self.mca   = MultiChannelAnalyzer(backend)
         self.hv: HVSupply | None = HVSupply(ids_backend) if ids_backend else None
+        self.scope_dma = scope_dma
+        self.mca_dma = mca_dma
 
     def close(self) -> None:
         if self.hv is not None:
@@ -72,7 +77,9 @@ class Digitizer:
 
         dpp = GrpcDigitizerBackend(channel, hostname, port)
         ids = GrpcIDSBackend(channel, hostname, ids_port) if with_ids else None
-        return cls(dpp, ids)
+        scope_dma = ScopeDmaStreamer(channel, hostname)
+        mca_dma = McaDmaStreamer(channel, hostname)
+        return cls(dpp, ids, scope_dma, mca_dma)
 
     # @classmethod
     # def from_iio(

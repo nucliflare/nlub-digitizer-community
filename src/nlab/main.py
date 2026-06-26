@@ -21,8 +21,15 @@ except ImportError:
     pass  # not compiled yet — run scripts/build_ui.py
 
 
+log = logging.getLogger(__name__)
+
+
 def main() -> None:
-    logging.getLogger().setLevel(logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(":/icons/ewt.ico"))
     app.setApplicationName("Nuclear Lab Digitizer")
@@ -39,6 +46,8 @@ def main() -> None:
     if dialog.exec() != ConnectionDialog.DialogCode.Accepted:
         sys.exit(0)
 
+    log.info("Application starting — v%s, host=%s, port=%d, channels=%d",
+             __version__, dialog.ip, dialog.port, dialog.channels)
     window = MainAppWindow(host=dialog.ip, port=dialog.port, channels=dialog.channels)
 
     window.show()
