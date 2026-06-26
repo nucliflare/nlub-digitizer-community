@@ -338,15 +338,17 @@ class MCAController(QWidget):
 
     def stop_worker_sync(self) -> None:
         """Blocking stop for use during application shutdown only."""
-        if self._worker is not None:
-            self._worker.request_stop.emit()
-        if self._worker_thread is not None:
-            if not self._worker_thread.wait(3000):
+        worker = self._worker
+        thread = self._worker_thread
+        if worker is not None:
+            worker.request_stop.emit()
+        if thread is not None:
+            if not thread.wait(3000):
                 log.warning("MCA worker thread did not stop in time, terminating")
-                self._worker_thread.terminate()
-                self._worker_thread.wait()
-            self._worker_thread = None
-            self._worker = None
+                thread.terminate()
+                thread.wait()
+        self._worker_thread = None
+        self._worker = None
 
     # ------------------------------------------------------------------
     # DMA listmode recording
