@@ -119,6 +119,15 @@ class ScopeDmaStreamer:
                                      "(HW start_irq fired, DMA engine running)")
                             started = True
                             continue
+                        if message != STREAM_END and len(message) > len(STREAM_START):
+                            log.warning("Scope DMA: data arrived before StreamSTART "
+                                        "(%d bytes) — server missed sentinel, "
+                                        "treating as stream active", len(message))
+                            started = True
+                            f.write(message)
+                            total_bytes += len(message)
+                            frame_count += 1
+                            continue
                         log.debug("Scope DMA: pre-start message, %d bytes (ignoring)",
                                   len(message))
                         continue
@@ -225,9 +234,16 @@ class McaDmaStreamer:
                                  "(HW list_start_irq fired, DMA engine running)")
                         started = True
                         continue
-                    log.debug("MCA DMA: pre-start message, %d bytes (ignoring)",
-                              len(message))
-                    continue
+                    if message != STREAM_END and len(message) > len(STREAM_START):
+                        log.warning("MCA DMA: data arrived before StreamSTART "
+                                    "(%d bytes) — server missed sentinel, "
+                                    "treating as stream active", len(message))
+                        started = True
+                        # Fall through to process this message as data
+                    else:
+                        log.debug("MCA DMA: pre-start message, %d bytes (ignoring)",
+                                  len(message))
+                        continue
 
                 if message == STREAM_END:
                     log.info("MCA DMA: StreamEND received "

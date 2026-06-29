@@ -185,6 +185,7 @@ class PSUController(QWidget):
         self._worker.finished.connect(self._worker_thread.quit)
         self._worker.finished.connect(self._worker.deleteLater)
         self._worker_thread.finished.connect(self._worker_thread.deleteLater)
+        self._worker_thread.finished.connect(self._on_monitor_finished)
 
         self.ui.btnStartMonitor.setEnabled(False)
         self.ui.btnStopMonitor.setEnabled(True)
@@ -194,16 +195,28 @@ class PSUController(QWidget):
     def _on_stop_monitor(self) -> None:
         if self._worker is not None:
             self._worker.request_stop.emit()
-            self._worker = None
-        if self._worker_thread is not None:
-            if not self._worker_thread.wait(3000):
-                log.warning("PSU worker thread did not stop in time, terminating")
-                self._worker_thread.terminate()
-                self._worker_thread.wait()
-            self._worker_thread = None
         self.ui.btnStartMonitor.setEnabled(True)
         self.ui.btnStopMonitor.setEnabled(False)
+        log.info("PSU: monitoring stop requested")
+
+    def _on_monitor_finished(self) -> None:
+        self._worker = None
+        self._worker_thread = None
         log.info("PSU: monitoring stopped")
+
+    def stop_monitor_sync(self) -> None:
+        """Blocking stop for use during application shutdown only."""
+        worker = self._worker
+        thread = self._worker_thread
+        if worker is not None:
+            worker.request_stop.emit()
+        if thread is not None:
+            if not thread.wait(3000):
+                log.warning("PSU worker thread did not stop in time, terminating")
+                thread.terminate()
+                thread.wait()
+        self._worker_thread = None
+        self._worker = None
 
     def _on_refresh_rate_changed(self, value: int) -> None:
         if self._worker is not None:

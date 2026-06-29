@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QRectF, QThread, QThreadPool, QTimer
+from PySide6.QtCore import QRectF, QSettings, QThread, QThreadPool, QTimer
 from PySide6.QtWidgets import QFileDialog, QSlider, QSpinBox, QWidget
 
 from nlab.hardware.digitizer.dma import ScopeDmaStreamer
@@ -38,7 +38,7 @@ class ScopeController(QWidget):
     Widget ranges and defaults are driven entirely by Scope.specs at runtime.
     """
 
-    _Y_SCALE_FACTOR = 10
+    _Y_SCALE_FACTOR = 20
     _Y_MIN = -32_000
     _Y_MAX = 32_000
 
@@ -68,8 +68,10 @@ class ScopeController(QWidget):
         self._apply_parameter_specs()
         self._send_defaults()
         self._load_hardware_state()
+        self._restore_display_settings()
         self._setup_graph()
         self._connect_signals()
+        self.ui.btnStop.setEnabled(False)
 
     # ------------------------------------------------------------------
     # Spec application
@@ -143,7 +145,38 @@ class ScopeController(QWidget):
         self.ui.cbDmaEnable.setChecked(self._scope.get_dma_enable())
 
     # ------------------------------------------------------------------
-    # Signal wiring (identical to working version + DMA buttons)
+    # Display settings persistence
+    # ------------------------------------------------------------------
+
+    def _settings_key(self, name: str) -> str:
+        return f"scope/ch{self._channel}/{name}"
+
+    def _restore_display_settings(self) -> None:
+        s = QSettings()
+        if (v := s.value(self._settings_key("display_mode"))) is not None:
+            self.ui.comboDisplayMode.setCurrentIndex(int(v))
+        if (v := s.value(self._settings_key("persistence"))) is not None:
+            self.ui.dialPersistence.setValue(int(v))
+        if (v := s.value(self._settings_key("refresh_rate"))) is not None:
+            self.ui.spinRefreshRate.setValue(int(v))
+
+    def save_display_settings(self) -> None:
+        s = QSettings()
+        s.setValue(self._settings_key("display_mode"), self.ui.comboDisplayMode.currentIndex())
+        s.setValue(self._settings_key("persistence"), self.ui.dialPersistence.value())
+        s.setValue(self._settings_key("refresh_rate"), self.ui.spinRefreshRate.value())
+
+    # ------------------------------------------------------------------
+    # Enable/disable parameter controls during DMA
+    # ------------------------------------------------------------------
+
+    def _set_controls_enabled(self, enabled: bool) -> None:
+        self.ui.groupTrigger.setEnabled(enabled)
+        self.ui.groupTiming.setEnabled(enabled)
+        self.ui.cbDmaEnable.setEnabled(enabled)
+
+    # ------------------------------------------------------------------
+    # Signal wiring
     # ------------------------------------------------------------------
 
     def _connect_signals(self) -> None:
@@ -165,9 +198,7 @@ class ScopeController(QWidget):
         self.ui.btnStart.clicked.connect(self._on_start)
         self.ui.btnStop.clicked.connect(self._on_stop)
         self.ui.btnAcquireFrame.clicked.connect(self._on_acquire_frame)
-
-        self.ui.btnRecord.toggled.connect(self._on_record_toggled)
-        self.ui.btnRecordFile.clicked.connect(self._on_record_file)
+        self.ui.btnDmaFile.clicked.connect(self._on_dma_file)
 
         self.ui.comboDisplayMode.currentIndexChanged.connect(self._on_display_mode_changed)
         self.ui.dialPersistence.valueChanged.connect(self._on_persistence_changed)
@@ -197,23 +228,82 @@ class ScopeController(QWidget):
         slider.sliderReleased.connect(on_slider_released)
 
     # ------------------------------------------------------------------
-    # Slots (restored to working version)
+    # Start / Stop
     # ------------------------------------------------------------------
 
     def _on_start(self) -> None:
-        self._scope.start()
         self.ui.btnStart.setEnabled(False)
-        self.ui.btnStop.setEnabled(True)
         self.ui.btnAcquireFrame.setEnabled(False)
+
+        if self.ui.cbDmaEnable.isChecked() and self._scope_dma is not None:
+            self._start_with_dma()
+        else:
+            self._start_polling_only()
+
+    def _start_polling_only(self) -> None:
+        self._scope.start()
+        self.ui.btnStop.setEnabled(True)
         interval_ms = 1000 // self.ui.spinRefreshRate.value()
         self._refresh_timer.start(interval_ms)
         log.info("Scope ch%d: acquisition started (refresh %d ms)", self._channel, interval_ms)
 
+    def _start_with_dma(self) -> None:
+        filepath = self._dma_filepath or self._generate_filepath()
+        self._dma_filepath = None
+        frame_samples = self.ui.spinFrameSamples.value()
+        log.debug("Scope ch%d DMA [1/6]: creating worker, file=%s, frame_samples=%d",
+                  self._channel, filepath, frame_samples)
+
+        self._dma_worker = ScopeDmaWorker(
+            streamer=self._scope_dma,
+            filepath=filepath,
+            frame_samples=frame_samples,
+        )
+        self._dma_thread = QThread(self)
+        self._dma_worker.moveToThread(self._dma_thread)
+
+        self._dma_thread.started.connect(self._dma_worker.run)
+        self._dma_worker.ready.connect(self._on_dma_ready)
+        self._dma_worker.progress.connect(self._on_dma_progress)
+        self._dma_worker.error.connect(self._on_dma_error)
+        self._dma_worker.finished.connect(self._dma_thread.quit)
+        self._dma_worker.finished.connect(self._dma_worker.deleteLater)
+        self._dma_thread.finished.connect(self._dma_thread.deleteLater)
+        self._dma_thread.finished.connect(self._on_dma_finished)
+
+        self._set_controls_enabled(False)
+        self.ui.lblRecordingStatus.setText("Connecting...")
+        log.debug("Scope ch%d DMA [2/6]: starting worker thread (ZMQ connect + subscribe)",
+                  self._channel)
+        self._dma_thread.start()
+        log.info("Scope DMA: worker started, waiting for socket ready, file=%s", filepath)
+
+    def _on_dma_ready(self) -> None:
+        log.debug("Scope ch%d DMA [3/6]: ZMQ socket ready, DMA already enabled via checkbox",
+                  self._channel)
+        log.debug("Scope ch%d DMA [4/6]: calling scope.start() -> set_enable(True) "
+                  "(HW fires start_irq -> server sends StreamSTART)", self._channel)
+        self._scope.start()
+        log.debug("Scope ch%d DMA [5/6]: scope started, beginning display polling",
+                  self._channel)
+        interval_ms = 1000 // self.ui.spinRefreshRate.value()
+        self._refresh_timer.start(interval_ms)
+        self.ui.btnStop.setEnabled(True)
+        self.ui.lblRecordingStatus.setText("Recording...")
+        log.info("Scope ch%d: DMA + acquisition started (socket was ready)", self._channel)
+
     def _on_stop(self) -> None:
         self._refresh_timer.stop()
-        if self.ui.btnRecord.isChecked():
-            self.ui.btnRecord.setChecked(False)
-        self._scope.stop()
+
+        if self._dma_worker is not None:
+            log.debug("Scope ch%d: stopping with DMA", self._channel)
+            self._scope.stop()
+            if self._dma_worker is not None:
+                self._dma_worker.stop()
+            self._set_controls_enabled(True)
+        else:
+            self._scope.stop()
+
         self._acquiring = False
         self.ui.btnStart.setEnabled(True)
         self.ui.btnStop.setEnabled(False)
@@ -246,7 +336,7 @@ class ScopeController(QWidget):
     def _on_frame_samples_changed(self) -> None:
         value = self.ui.spinFrameSamples.value()
         self._scope.set_frame_samples(value)
-        self._display_nx = value // 8
+        self._display_nx = value // 4
         self._display_ny = self._display_nx * self._Y_SCALE_FACTOR
         self._persistence_buffer = np.zeros((self._display_nx, self._display_ny), dtype=np.float32)
         self._update_axis_ranges()
@@ -265,13 +355,19 @@ class ScopeController(QWidget):
     def _rasterize_frame(self, frame: np.ndarray) -> None:
         self._persistence_buffer *= self.persistence
         n_samples = len(frame)
-        x_indices = np.linspace(0, self._display_nx - 1, n_samples).astype(int)
-        y_indices = np.clip(
-            ((frame.astype(np.float32) - self._Y_MIN) / (self._Y_MAX - self._Y_MIN) * (self._display_ny - 1)).astype(int),
-            0,
-            self._display_ny - 1,
-        )
-        self._persistence_buffer[x_indices, y_indices] = 1.0
+        x_float = np.linspace(0, self._display_nx - 1, n_samples)
+        y_float = (frame.astype(np.float32) - self._Y_MIN) / (self._Y_MAX - self._Y_MIN) * (self._display_ny - 1)
+        y_float = np.clip(y_float, 0, self._display_ny - 1)
+
+        for i in range(n_samples - 1):
+            x0, y0 = x_float[i], y_float[i]
+            x1, y1 = x_float[i + 1], y_float[i + 1]
+            n_pts = max(int(max(abs(x1 - x0), abs(y1 - y0))), 1) + 1
+            xs = np.linspace(x0, x1, n_pts).astype(int)
+            ys = np.linspace(y0, y1, n_pts).astype(int)
+            np.clip(xs, 0, self._display_nx - 1, out=xs)
+            np.clip(ys, 0, self._display_ny - 1, out=ys)
+            self._persistence_buffer[xs, ys] = 1.0
 
     # ------------------------------------------------------------------
     # Graph setup
@@ -299,7 +395,7 @@ class ScopeController(QWidget):
         layout.addLabel("Time [ns]", col=1)
 
     def _setup_persistence_layer(self) -> None:
-        self._display_nx = self.ui.spinFrameSamples.value() // 8
+        self._display_nx = self.ui.spinFrameSamples.value() // 4
         self._display_ny = self._display_nx * self._Y_SCALE_FACTOR
         self._persistence_buffer = np.zeros((self._display_nx, self._display_ny), dtype=np.float32)
         self._persistence_img = pg.ImageItem()
@@ -341,105 +437,27 @@ class ScopeController(QWidget):
         return self.ui.dialPersistence.value() / 1000.0
 
     # ------------------------------------------------------------------
-    # DMA recording
+    # DMA helpers
     # ------------------------------------------------------------------
 
     def _generate_filepath(self) -> Path:
-        measurements = Path("measurements")
-        measurements.mkdir(exist_ok=True)
+        folder = Path(QSettings().value("dma/save_folder", "measurements"))
+        folder.mkdir(parents=True, exist_ok=True)
         ts = time.strftime("%Y%m%d_%H%M%S")
         self._dma_counter += 1
         name = f"scope_ch{self._channel}_{ts}_{self._dma_counter:03d}.bin"
-        filepath = measurements / name
+        filepath = folder / name
         log.info("Scope DMA: auto-generated filepath: %s", filepath)
         return filepath
 
-    def _on_record_file(self) -> None:
+    def _on_dma_file(self) -> None:
+        default_dir = str(QSettings().value("dma/save_folder", "measurements"))
         path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Scope DMA Recording",
-            "",
-            "Binary files (*.bin);;All files (*)",
+            self, "Scope DMA File", default_dir, "Binary files (*.bin);;All files (*)",
         )
         if path:
             self._dma_filepath = Path(path)
             log.info("Scope DMA: user selected filepath: %s", self._dma_filepath)
-
-    def _on_record_toggled(self, checked: bool) -> None:
-        if checked:
-            self._start_dma()
-        else:
-            self._stop_dma()
-
-    def _start_dma(self) -> None:
-        if self._scope_dma is None:
-            log.warning("Scope DMA: no streamer configured")
-            self.ui.btnRecord.setChecked(False)
-            return
-
-        filepath = self._dma_filepath or self._generate_filepath()
-        frame_samples = self.ui.spinFrameSamples.value()
-        log.debug("Scope ch%d DMA [1/6]: creating worker, file=%s, frame_samples=%d",
-                  self._channel, filepath, frame_samples)
-
-        self._dma_worker = ScopeDmaWorker(
-            streamer=self._scope_dma,
-            filepath=filepath,
-            frame_samples=frame_samples,
-        )
-        self._dma_thread = QThread(self)
-        self._dma_worker.moveToThread(self._dma_thread)
-
-        self._dma_thread.started.connect(self._dma_worker.run)
-        self._dma_worker.ready.connect(self._on_dma_ready)
-        self._dma_worker.progress.connect(self._on_dma_progress)
-        self._dma_worker.error.connect(self._on_dma_error)
-        self._dma_worker.finished.connect(self._dma_thread.quit)
-        self._dma_worker.finished.connect(self._dma_worker.deleteLater)
-        self._dma_thread.finished.connect(self._dma_thread.deleteLater)
-        self._dma_thread.finished.connect(self._on_dma_finished)
-
-        self.ui.btnStart.setEnabled(False)
-        self.ui.btnStop.setEnabled(False)
-        self.ui.btnAcquireFrame.setEnabled(False)
-        self.ui.lblRecordingStatus.setText("Connecting...")
-        log.debug("Scope ch%d DMA [2/6]: starting worker thread (ZMQ connect + subscribe)",
-                  self._channel)
-        self._dma_thread.start()
-        log.info("Scope DMA: worker started, waiting for socket ready, file=%s", filepath)
-
-    def _on_dma_ready(self) -> None:
-        log.debug("Scope ch%d DMA [3/6]: ZMQ socket ready, enabling DMA on hardware",
-                  self._channel)
-        self._scope.set_dma_enable(True)
-        log.debug("Scope ch%d DMA [4/6]: DMA enabled, calling scope.start() -> set_enable(True) "
-                  "(HW fires start_irq -> server sends StreamSTART)", self._channel)
-        self._scope.start()
-        log.debug("Scope ch%d DMA [5/6]: scope started, beginning display polling",
-                  self._channel)
-        interval_ms = 1000 // self.ui.spinRefreshRate.value()
-        self._refresh_timer.start(interval_ms)
-        self.ui.btnStop.setEnabled(True)
-        self.ui.lblRecordingStatus.setText("Recording...")
-        log.info("Scope ch%d: DMA enabled + acquisition started (socket was ready)", self._channel)
-
-    def _stop_dma(self) -> None:
-        log.debug("Scope ch%d DMA stop [1/4]: stopping display polling", self._channel)
-        self._refresh_timer.stop()
-        log.debug("Scope ch%d DMA stop [2/4]: signalling worker to stop (stop_event.set())",
-                  self._channel)
-        if self._dma_worker is not None:
-            self._dma_worker.stop()
-        log.debug("Scope ch%d DMA stop [3/4]: disabling DMA on hardware", self._channel)
-        self._scope.set_dma_enable(False)
-        log.debug("Scope ch%d DMA stop [4/4]: calling scope.stop() -> set_enable(False) "
-                  "(HW fires stop_irq -> server sends StreamEND)", self._channel)
-        self._scope.stop()
-        self._acquiring = False
-        self.ui.btnStart.setEnabled(True)
-        self.ui.btnStop.setEnabled(False)
-        self.ui.btnAcquireFrame.setEnabled(True)
-        log.info("Scope ch%d: DMA disabled + acquisition stopped", self._channel)
 
     def _on_dma_progress(self, bytes_written: int) -> None:
         if bytes_written < 1024 * 1024:
@@ -450,13 +468,11 @@ class ScopeController(QWidget):
     def _on_dma_error(self, message: str) -> None:
         log.error("Scope DMA error: %s", message)
         self.ui.lblRecordingStatus.setText(f"Error: {message}")
-        self.ui.btnRecord.setChecked(False)
 
     def _on_dma_finished(self) -> None:
         self._dma_worker = None
         self._dma_thread = None
-        if not self.ui.btnRecord.isChecked():
-            self.ui.lblRecordingStatus.setText("Stopped")
+        self.ui.lblRecordingStatus.setText("Stopped")
         log.info("Scope DMA: worker finished")
 
     def stop_dma_sync(self) -> None:

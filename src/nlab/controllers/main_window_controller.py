@@ -151,45 +151,54 @@ class MainWindowController:
             if not self._psu_dock_host.restoreState(state):
                 settings.remove(self._DOCK_STATE_KEY_PSU)
 
+    def reset_dock_layout(self) -> None:
+        """Clear saved dock state and re-tabify all channel docks."""
+        settings = QSettings()
+        settings.remove(self._DOCK_STATE_KEY_SCOPE)
+        settings.remove(self._DOCK_STATE_KEY_MCA)
+        settings.remove(self._DOCK_STATE_KEY_PSU)
+
+        for host in (self._scope_dock_host, self._mca_dock_host, self._psu_dock_host):
+            docks = host.findChildren(QDockWidget)
+            if len(docks) < 2:
+                continue
+            for i in range(1, len(docks)):
+                host.tabifyDockWidget(docks[i - 1], docks[i])
+            docks[0].raise_()
+
+        log.info("Dock layout reset to default (tabbed)")
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
     def shutdown(self) -> None:
         """Persist dock layout, stop all workers, close all devices."""
-        log.info("Shutdown: persisting dock state")
+        log.info("Shutdown: persisting state")
         self._save_dock_state()
+        for ctrl in self._scope_controllers:
+            ctrl.save_display_settings()
 
         # 1. Stop scope timers — no new workers will be submitted
         for ctrl in self._scope_controllers:
             ctrl._refresh_timer.stop()
 
-        # 2. Signal PSU workers to stop (non-blocking)
-        for ctrl in self._psu_controllers:
-            if ctrl._worker is not None:
-                ctrl._worker.request_stop.emit()
-
-        # 3. Stop DMA workers (blocking — app is shutting down)
+        # 2. Stop DMA workers (blocking — app is shutting down)
         for ctrl in self._scope_controllers:
             ctrl.stop_dma_sync()
         for ctrl in self._mca_controllers:
             ctrl.stop_dma_sync()
 
-        # 4. Stop MCA polling workers (blocking)
+        # 3. Stop MCA polling workers (blocking)
         for ctrl in self._mca_controllers:
             ctrl.stop_worker_sync()
 
-        # 5. Wait for in-flight scope workers to finish
+        # 4. Wait for in-flight scope workers to finish
         QThreadPool.globalInstance().waitForDone(3000)
 
-        # 6. Wait for PSU threads to exit, then drop references
+        # 5. Stop PSU workers (blocking)
         for ctrl in self._psu_controllers:
-            if ctrl._worker_thread is not None:
-                if not ctrl._worker_thread.wait(3000):
-                    ctrl._worker_thread.terminate()
-                    ctrl._worker_thread.wait()
-                ctrl._worker_thread = None
-            ctrl._worker = None
+            ctrl.stop_monitor_sync()
 
         if self._thread is not None:
             self._thread.quit()

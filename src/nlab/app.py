@@ -4,7 +4,7 @@ import logging
 
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QMainWindow, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
 
 from nlab import __version__
 from nlab.controllers.main_window_controller import MainWindowController
@@ -26,6 +26,7 @@ Source: <a href="https://github.com/ewt/nlab-community">github.com/ewt/nlab-comm
 
 _KEY_SHOW_LOG = "developer/show_system_log"
 _KEY_DEBUG_MODE = "developer/debug_mode"
+_KEY_DMA_FOLDER = "dma/save_folder"
 
 
 class MainAppWindow(QMainWindow):
@@ -52,6 +53,8 @@ class MainAppWindow(QMainWindow):
         self.resize(1024, 768)
 
         self.ui.actionExit.triggered.connect(self.close)
+        self.ui.actionResetDocks.triggered.connect(self._on_reset_docks)
+        self.ui.actionDmaSaveFolder.triggered.connect(self._on_dma_save_folder)
         self.ui.actionAbout.triggered.connect(self._on_about)
         self.ui.actionThirdPartyLicenses.triggered.connect(self._on_third_party_licenses)
         self.ui.actionShowSystemLog.toggled.connect(self._on_show_system_log_toggled)
@@ -105,6 +108,16 @@ class MainAppWindow(QMainWindow):
                                          logging.getLevelName(level))
         if checked and not self.ui.actionShowSystemLog.isChecked():
             self.ui.actionShowSystemLog.setChecked(True)
+
+    def _on_reset_docks(self) -> None:
+        self._controller.reset_dock_layout()
+
+    def _on_dma_save_folder(self) -> None:
+        current = QSettings().value(_KEY_DMA_FOLDER, "measurements")
+        folder = QFileDialog.getExistingDirectory(self, "DMA Save Folder", str(current))
+        if folder:
+            QSettings().setValue(_KEY_DMA_FOLDER, folder)
+            logging.getLogger(__name__).info("DMA save folder set to: %s", folder)
 
     def _on_about(self) -> None:
         QMessageBox.about(self, "About Nuclear Lab Digitizer", _ABOUT_TEXT)

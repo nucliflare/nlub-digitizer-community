@@ -229,6 +229,9 @@
             <property name="text">
              <string>Start</string>
             </property>
+            <property name="styleSheet">
+             <string>background-color: #4CAF50; color: white; font-weight: bold;</string>
+            </property>
            </widget>
           </item>
           <item>
@@ -238,6 +241,9 @@
             </property>
             <property name="text">
              <string>Stop</string>
+            </property>
+            <property name="styleSheet">
+             <string>background-color: #f44336; color: white; font-weight: bold;</string>
             </property>
            </widget>
           </item>
@@ -251,25 +257,11 @@
          </widget>
         </item>
         <item>
-         <layout class="QHBoxLayout" name="btnRecordLayout">
-          <item>
-           <widget class="QPushButton" name="btnRecord">
-            <property name="text">
-             <string>Record</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnRecordFile">
-            <property name="text">
-             <string>File...</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <widget class="QPushButton" name="btnDmaFile">
+          <property name="text">
+           <string>DMA File...</string>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QLabel" name="lblRecordingStatus">

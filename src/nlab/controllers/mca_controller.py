@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QThread
+from PySide6.QtCore import QSettings, QThread
 from PySide6.QtWidgets import QFileDialog, QMenuBar, QSlider, QSpinBox, QWidget
 
 from nlab.hardware.digitizer.dma import McaDmaStreamer
@@ -67,6 +67,7 @@ class MCAController(QWidget):
         self._setup_debug_plot()
         self._setup_histogram_plot()
         self._connect_signals()
+        self.ui.btnStop.setEnabled(False)
 
     # ------------------------------------------------------------------
     # Combo population
@@ -121,6 +122,17 @@ class MCAController(QWidget):
         self.ui.comboDebug1.setCurrentIndex(self._mca.get_mem1_sig_select())
         self.ui.comboDebug2.setCurrentIndex(self._mca.get_mem2_sig_select())
         log.info("MCA ch%d: hardware state loaded into UI", self._channel)
+
+    # ------------------------------------------------------------------
+    # Enable/disable parameter controls during DMA
+    # ------------------------------------------------------------------
+
+    def _set_controls_enabled(self, enabled: bool) -> None:
+        self.ui.groupMca.setEnabled(enabled)
+        self.ui.groupSignal.setEnabled(enabled)
+        self.ui.tabFilters.setEnabled(enabled)
+        self.ui.spinTimeLimit.setEnabled(enabled)
+        self.ui.spinRefreshRate.setEnabled(enabled)
 
     # ------------------------------------------------------------------
     # View menu with ROI toggle
@@ -225,9 +237,8 @@ class MCAController(QWidget):
         self.ui.btnStart.clicked.connect(self._on_start)
         self.ui.btnStop.clicked.connect(self._on_stop)
         self.ui.btnClearSpectrum.clicked.connect(self._on_clear_spectrum)
-
-        self.ui.btnRecord.toggled.connect(self._on_record_toggled)
-        self.ui.btnRecordFile.clicked.connect(self._on_record_file)
+        self.ui.cbDmaEnable.toggled.connect(lambda v: self._mca.set_dma_enable(v))
+        self.ui.btnDmaFile.clicked.connect(self._on_dma_file)
         self.ui.spinRefreshRate.valueChanged.connect(self._on_refresh_rate_changed)
 
         self._wire_slider_spinbox(self.ui.sliderTriggerLevel, self.ui.spinTriggerLevel, lambda v: self._mca.set_trigger_level(v))
@@ -287,17 +298,32 @@ class MCAController(QWidget):
     # ------------------------------------------------------------------
 
     def _on_start(self) -> None:
-        self._mca.start()
         self.ui.btnStart.setEnabled(False)
+
+        if self.ui.cbDmaEnable.isChecked() and self._mca_dma is not None:
+            self._start_with_dma()
+        else:
+            self._start_polling_only()
+
+    def _start_polling_only(self) -> None:
+        self._mca.start()
         self.ui.btnStop.setEnabled(True)
         self._start_worker()
         log.info("MCA ch%d: measurement started", self._channel)
 
     def _on_stop(self) -> None:
-        if self.ui.btnRecord.isChecked():
-            self.ui.btnRecord.setChecked(False)
-        self._stop_worker()
-        self._mca.stop()
+        if self._dma_worker is not None:
+            log.debug("MCA ch%d: stopping with DMA", self._channel)
+            self._stop_worker()
+            self._mca.stop()
+            self._mca.set_dma_enable(False)
+            if self._dma_worker is not None:
+                self._dma_worker.stop()
+            self._set_controls_enabled(True)
+        else:
+            self._stop_worker()
+            self._mca.stop()
+
         self.ui.btnStart.setEnabled(True)
         self.ui.btnStop.setEnabled(False)
         log.info("MCA ch%d: measurement stopped", self._channel)
@@ -355,39 +381,27 @@ class MCAController(QWidget):
     # ------------------------------------------------------------------
 
     def _generate_filepath(self) -> Path:
-        measurements = Path("measurements")
-        measurements.mkdir(exist_ok=True)
+        folder = Path(QSettings().value("dma/save_folder", "measurements"))
+        folder.mkdir(parents=True, exist_ok=True)
         ts = time.strftime("%Y%m%d_%H%M%S")
         self._dma_counter += 1
         name = f"ch{self._channel}_{ts}_{self._dma_counter:03d}.bin"
-        filepath = measurements / name
+        filepath = folder / name
         log.info("MCA DMA: auto-generated filepath: %s", filepath)
         return filepath
 
-    def _on_record_file(self) -> None:
+    def _on_dma_file(self) -> None:
+        default_dir = str(QSettings().value("dma/save_folder", "measurements"))
         path, _ = QFileDialog.getSaveFileName(
-            self,
-            "MCA Listmode Recording",
-            "",
-            "Binary files (*.bin);;All files (*)",
+            self, "MCA DMA File", default_dir, "Binary files (*.bin);;All files (*)",
         )
         if path:
             self._dma_filepath = Path(path)
             log.info("MCA DMA: user selected filepath: %s", self._dma_filepath)
 
-    def _on_record_toggled(self, checked: bool) -> None:
-        if checked:
-            self._start_dma()
-        else:
-            self._stop_dma()
-
-    def _start_dma(self) -> None:
-        if self._mca_dma is None:
-            log.warning("MCA DMA: no streamer configured")
-            self.ui.btnRecord.setChecked(False)
-            return
-
+    def _start_with_dma(self) -> None:
         filepath = self._dma_filepath or self._generate_filepath()
+        self._dma_filepath = None
         self._event_buffer.clear()
         log.debug("MCA ch%d DMA [1/6]: creating worker, file=%s", self._channel, filepath)
 
@@ -408,8 +422,7 @@ class MCAController(QWidget):
         self._dma_thread.finished.connect(self._dma_thread.deleteLater)
         self._dma_thread.finished.connect(self._on_dma_finished)
 
-        self.ui.btnStart.setEnabled(False)
-        self.ui.btnStop.setEnabled(False)
+        self._set_controls_enabled(False)
         self.ui.lblDmaStatus.setText("Connecting...")
         log.debug("MCA ch%d DMA [2/6]: starting worker thread (ZMQ connect + subscribe)",
                   self._channel)
@@ -417,11 +430,9 @@ class MCAController(QWidget):
         log.info("MCA DMA: worker started, waiting for socket ready, file=%s", filepath)
 
     def _on_dma_ready(self) -> None:
-        """Called when the ZMQ socket is connected — now safe to enable DMA and start."""
-        log.debug("MCA ch%d DMA [3/6]: ZMQ socket ready, enabling DMA on hardware",
+        log.debug("MCA ch%d DMA [3/6]: ZMQ socket ready, DMA already enabled via checkbox",
                   self._channel)
-        self._mca.set_dma_enable(True)
-        log.debug("MCA ch%d DMA [4/6]: DMA enabled, calling mca.start() -> set_global_enable(True) "
+        log.debug("MCA ch%d DMA [4/6]: calling mca.start() -> set_global_enable(True) "
                   "(HW fires list_start_irq -> server sends StreamSTART)", self._channel)
         self._mca.start()
         log.debug("MCA ch%d DMA [5/6]: measurement started, starting gRPC polling worker",
@@ -429,23 +440,7 @@ class MCAController(QWidget):
         self._start_worker()
         self.ui.btnStop.setEnabled(True)
         self.ui.lblDmaStatus.setText("Recording...")
-        log.info("MCA ch%d: DMA enabled + measurement started (socket was ready)", self._channel)
-
-    def _stop_dma(self) -> None:
-        log.debug("MCA ch%d DMA stop [1/4]: stopping gRPC polling worker", self._channel)
-        self._stop_worker()
-        log.debug("MCA ch%d DMA stop [2/4]: signalling DMA worker to stop (stop_event.set())",
-                  self._channel)
-        if self._dma_worker is not None:
-            self._dma_worker.stop()
-        log.debug("MCA ch%d DMA stop [3/4]: disabling DMA on hardware", self._channel)
-        self._mca.set_dma_enable(False)
-        log.debug("MCA ch%d DMA stop [4/4]: calling mca.stop() -> set_global_enable(False) "
-                  "(HW fires list_stop_irq -> server sends StreamEND)", self._channel)
-        self._mca.stop()
-        self.ui.btnStart.setEnabled(True)
-        self.ui.btnStop.setEnabled(False)
-        log.info("MCA ch%d: DMA disabled + measurement stopped", self._channel)
+        log.info("MCA ch%d: DMA + measurement started (socket was ready)", self._channel)
 
     def _on_dma_progress(self, event_count: int) -> None:
         self.ui.lblDmaStatus.setText(f"Recording: {event_count} events")
@@ -453,13 +448,11 @@ class MCAController(QWidget):
     def _on_dma_error(self, message: str) -> None:
         log.error("MCA DMA error: %s", message)
         self.ui.lblDmaStatus.setText(f"Error: {message}")
-        self.ui.btnRecord.setChecked(False)
 
     def _on_dma_finished(self) -> None:
         self._dma_worker = None
         self._dma_thread = None
-        if not self.ui.btnRecord.isChecked():
-            self.ui.lblDmaStatus.setText("Stopped")
+        self.ui.lblDmaStatus.setText("Stopped")
         log.info("MCA DMA: worker finished")
 
     def stop_dma_sync(self) -> None:
