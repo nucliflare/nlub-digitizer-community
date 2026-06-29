@@ -1,12 +1,3 @@
 project:
-  type: website
+  type: default
   output-dir: ../wiki
-
-website:
-  title: "NLab Community"
-  navbar:
-    left:
-      - text: "Scope Analysis"
-        href: analyze_scope.qmd
-      - text: "Listmode Analysis"
-        href: analyze_listmode.qmd
