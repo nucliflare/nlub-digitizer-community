@@ -379,6 +379,8 @@ class ScopeController(QWidget):
 
         filepath = self._dma_filepath or self._generate_filepath()
         frame_samples = self.ui.spinFrameSamples.value()
+        log.debug("Scope ch%d DMA [1/6]: creating worker, file=%s, frame_samples=%d",
+                  self._channel, filepath, frame_samples)
 
         self._dma_worker = ScopeDmaWorker(
             streamer=self._scope_dma,
@@ -401,12 +403,20 @@ class ScopeController(QWidget):
         self.ui.btnStop.setEnabled(False)
         self.ui.btnAcquireFrame.setEnabled(False)
         self.ui.lblRecordingStatus.setText("Connecting...")
+        log.debug("Scope ch%d DMA [2/6]: starting worker thread (ZMQ connect + subscribe)",
+                  self._channel)
         self._dma_thread.start()
         log.info("Scope DMA: worker started, waiting for socket ready, file=%s", filepath)
 
     def _on_dma_ready(self) -> None:
+        log.debug("Scope ch%d DMA [3/6]: ZMQ socket ready, enabling DMA on hardware",
+                  self._channel)
         self._scope.set_dma_enable(True)
+        log.debug("Scope ch%d DMA [4/6]: DMA enabled, calling scope.start() -> set_enable(True) "
+                  "(HW fires start_irq -> server sends StreamSTART)", self._channel)
         self._scope.start()
+        log.debug("Scope ch%d DMA [5/6]: scope started, beginning display polling",
+                  self._channel)
         interval_ms = 1000 // self.ui.spinRefreshRate.value()
         self._refresh_timer.start(interval_ms)
         self.ui.btnStop.setEnabled(True)
@@ -414,10 +424,16 @@ class ScopeController(QWidget):
         log.info("Scope ch%d: DMA enabled + acquisition started (socket was ready)", self._channel)
 
     def _stop_dma(self) -> None:
+        log.debug("Scope ch%d DMA stop [1/4]: stopping display polling", self._channel)
         self._refresh_timer.stop()
+        log.debug("Scope ch%d DMA stop [2/4]: signalling worker to stop (stop_event.set())",
+                  self._channel)
         if self._dma_worker is not None:
             self._dma_worker.stop()
+        log.debug("Scope ch%d DMA stop [3/4]: disabling DMA on hardware", self._channel)
         self._scope.set_dma_enable(False)
+        log.debug("Scope ch%d DMA stop [4/4]: calling scope.stop() -> set_enable(False) "
+                  "(HW fires stop_irq -> server sends StreamEND)", self._channel)
         self._scope.stop()
         self._acquiring = False
         self.ui.btnStart.setEnabled(True)

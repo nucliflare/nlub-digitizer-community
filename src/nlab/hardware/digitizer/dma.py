@@ -87,10 +87,11 @@ class ScopeDmaStreamer:
         poller = zmq.Poller()
         poller.register(socket, zmq.POLLIN)
 
-        log.info("Scope DMA: connecting to %s", self._endpoint)
+        log.debug("Scope DMA [worker 2a]: connecting ZMQ SUB to %s", self._endpoint)
         socket.connect(self._endpoint)
         time.sleep(0.2)
-        log.info("Scope DMA: socket ready, signalling controller")
+        log.debug("Scope DMA [worker 2b]: ZMQ connected, emitting ready "
+                  "(controller will enable DMA + call start)")
         if on_ready is not None:
             on_ready()
 
@@ -102,6 +103,8 @@ class ScopeDmaStreamer:
             with open(filepath, "wb") as f:
                 log.info("Scope DMA: recording to %s", filepath)
                 _write_file_header(f, self._channel, frame_samples)
+                log.debug("Scope DMA [worker 6/6]: polling for StreamSTART "
+                          "(waiting for HW start_irq after scope.start())")
 
                 while not stop_event.is_set():
                     events = dict(poller.poll(100))
@@ -112,18 +115,25 @@ class ScopeDmaStreamer:
 
                     if not started:
                         if message == STREAM_START:
-                            log.info("Scope DMA: stream started")
+                            log.info("Scope DMA: StreamSTART received "
+                                     "(HW start_irq fired, DMA engine running)")
                             started = True
                             continue
+                        log.debug("Scope DMA: pre-start message, %d bytes (ignoring)",
+                                  len(message))
                         continue
 
                     if message == STREAM_END:
-                        log.info("Scope DMA: stream ended by hardware")
+                        log.info("Scope DMA: StreamEND received "
+                                 "(HW stop_irq fired, scope.stop() was called)")
                         break
 
                     f.write(message)
                     total_bytes += len(message)
                     frame_count += 1
+                    if frame_count == 1:
+                        log.debug("Scope DMA: first data frame received, %d bytes "
+                                  "(DMA transfers active)", len(message))
 
                     if on_progress is not None:
                         on_progress(total_bytes)
@@ -132,10 +142,9 @@ class ScopeDmaStreamer:
             log.exception("Scope DMA: ZMQ error during streaming")
             raise
         finally:
-            log.info(
-                "Scope DMA: finished -- %d frames, %d bytes to %s",
-                frame_count, total_bytes, filepath,
-            )
+            reason = "stop_event" if stop_event.is_set() else "StreamEND"
+            log.info("Scope DMA: finished -- %d frames, %d bytes to %s (reason: %s)",
+                     frame_count, total_bytes, filepath, reason)
             socket.close()
             ctx.term()
 
@@ -181,10 +190,11 @@ class McaDmaStreamer:
         poller = zmq.Poller()
         poller.register(socket, zmq.POLLIN)
 
-        log.info("MCA DMA: connecting to %s", self._endpoint)
+        log.debug("MCA DMA [worker 2a]: connecting ZMQ SUB to %s", self._endpoint)
         socket.connect(self._endpoint)
         time.sleep(0.2)
-        log.info("MCA DMA: socket ready, signalling controller")
+        log.debug("MCA DMA [worker 2b]: ZMQ connected, emitting ready "
+                  "(controller will enable DMA + call start)")
         if on_ready is not None:
             on_ready()
 
@@ -199,6 +209,9 @@ class McaDmaStreamer:
                 log.info("MCA DMA: recording to %s", filepath)
                 _write_file_header(file_handle, self._channel)
 
+            log.debug("MCA DMA [worker 6/6]: polling for StreamSTART "
+                      "(waiting for HW list_start_irq after mca.start())")
+
             while not stop_event.is_set():
                 events = dict(poller.poll(100))
                 if socket not in events:
@@ -208,13 +221,17 @@ class McaDmaStreamer:
 
                 if not started:
                     if message == STREAM_START:
-                        log.info("MCA DMA: stream started")
+                        log.info("MCA DMA: StreamSTART received "
+                                 "(HW list_start_irq fired, DMA engine running)")
                         started = True
                         continue
+                    log.debug("MCA DMA: pre-start message, %d bytes (ignoring)",
+                              len(message))
                     continue
 
                 if message == STREAM_END:
-                    log.info("MCA DMA: stream ended by hardware")
+                    log.info("MCA DMA: StreamEND received "
+                             "(HW list_stop_irq fired, mca.stop() was called)")
                     break
 
                 if file_handle is not None:
@@ -229,6 +246,9 @@ class McaDmaStreamer:
 
                 total_events += n_events
                 msg_count += 1
+                if msg_count == 1:
+                    log.debug("MCA DMA: first event frame received, %d bytes, %d events "
+                              "(DMA transfers active)", len(message), n_events)
 
                 if event_buffer is not None and n_events > 0:
                     parsed = self.parse_events(message[:n_events * EVENT_SIZE])
@@ -243,7 +263,9 @@ class McaDmaStreamer:
             log.exception("MCA DMA: ZMQ error during streaming")
             raise
         finally:
-            log.info("MCA DMA: finished -- %d events from %d messages", total_events, msg_count)
+            reason = "stop_event" if stop_event.is_set() else "StreamEND"
+            log.info("MCA DMA: finished -- %d events from %d messages (reason: %s)",
+                     total_events, msg_count, reason)
             if file_handle is not None:
                 file_handle.close()
                 log.info("MCA DMA: file closed: %s", filepath)
