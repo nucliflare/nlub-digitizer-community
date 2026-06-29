@@ -230,7 +230,7 @@ class MCAController(QWidget):
 
         self.ui.spinTimeLimit.editingFinished.connect(
             lambda: (
-                log.debug("MCA ch%d: time_limit=%d", self._channel, self.ui.spinTimeLimit.value()),
+                log.debug("MCA ch%d: time_limit=%d s", self._channel, self.ui.spinTimeLimit.value()),
                 self._mca.set_time_limit(self.ui.spinTimeLimit.value()),
             )
         )
@@ -308,10 +308,11 @@ class MCAController(QWidget):
             self._start_polling_only()
 
     def _start_polling_only(self) -> None:
+        self._mca.set_time_limit(self.ui.spinTimeLimit.value())
         self._mca.start()
         self.ui.btnStop.setEnabled(True)
         self._start_worker()
-        log.info("MCA ch%d: measurement started", self._channel)
+        log.info("MCA ch%d: measurement started (time_limit=%d s)", self._channel, self.ui.spinTimeLimit.value())
 
     def _on_stop(self) -> None:
         self.ui.btnStop.setChecked(True)
@@ -333,8 +334,24 @@ class MCAController(QWidget):
         self.ui.btnStop.setEnabled(False)
         log.info("MCA ch%d: measurement stopped", self._channel)
 
+    def _on_measurement_done(self) -> None:
+        """Called when the hardware stops the measurement (time limit reached).
+
+        The worker has already stopped its own timer before emitting this signal.
+        """
+        log.info("MCA ch%d: measurement completed by hardware (time limit)", self._channel)
+        if self._dma_worker is not None:
+            self._mca.set_dma_enable(False)
+            self._dma_worker.stop()
+            self._set_controls_enabled(True)
+        self.ui.btnStart.setChecked(False)
+        self.ui.btnStart.setEnabled(True)
+        self.ui.btnStop.setChecked(True)
+        self.ui.btnStop.setEnabled(False)
+
     def _on_clear_spectrum(self) -> None:
         self._mca.clear_spectrum()
+        self._hist_curve.setData([], [])
 
     # ------------------------------------------------------------------
     # Polling worker lifecycle (gRPC histogram/stats)
@@ -348,6 +365,7 @@ class MCAController(QWidget):
 
         self._worker_thread.started.connect(self._worker.run)
         self._worker.readback.connect(self._on_readback)
+        self._worker.measurement_done.connect(self._on_measurement_done)
         self._worker.finished.connect(self._worker_thread.quit)
         self._worker.finished.connect(self._worker.deleteLater)
         self._worker_thread.finished.connect(self._worker_thread.deleteLater)
@@ -439,9 +457,10 @@ class MCAController(QWidget):
                   self._channel)
         log.debug("MCA ch%d DMA [4/6]: calling mca.start() -> set_global_enable(True) "
                   "(HW fires list_start_irq -> server sends StreamSTART)", self._channel)
+        self._mca.set_time_limit(self.ui.spinTimeLimit.value())
         self._mca.start()
-        log.debug("MCA ch%d DMA [5/6]: measurement started, starting gRPC polling worker",
-                  self._channel)
+        log.debug("MCA ch%d DMA [5/6]: measurement started (time_limit=%d s), starting gRPC polling worker",
+                  self._channel, self.ui.spinTimeLimit.value())
         self._start_worker()
         self.ui.btnStop.setEnabled(True)
         self.ui.lblDmaStatus.setText("Recording...")
@@ -503,7 +522,7 @@ class MCAController(QWidget):
     def _update_statistics(self, rb: MCAReadback) -> None:
         self.ui.lblCountRate.setText(str(rb.count_rate))
         self.ui.lblDeadTime.setText(str(rb.pulse_deadtime))
-        self.ui.lblElapsedTime.setText(str(rb.elapsed_time))
+        self.ui.lblElapsedTime.setText(f"{rb.elapsed_time / 10:.1f}")
         self.ui.lblEventsLost.setText(str(rb.events_lost))
         self.ui.lblPulsePileup.setText(str(rb.pulse_pileup))
         self.ui.lblPulseOverrange.setText(str(rb.pulse_overrange))

@@ -37,6 +37,7 @@ class MCAWorker(BaseWorker):
     """
 
     readback = Signal(object)
+    measurement_done = Signal()
     request_stop = Signal()
     change_interval = Signal(int)
 
@@ -49,6 +50,7 @@ class MCAWorker(BaseWorker):
         self._mca = mca
         self._interval_ms = interval_ms
         self._timer: QTimer | None = None
+        self._seen_running = False
 
     def run(self) -> None:
         self._timer = QTimer()
@@ -93,3 +95,9 @@ class MCAWorker(BaseWorker):
             log.exception("MCA readback failed")
             return
         self.readback.emit(rb)
+        if self._mca.get_measurement_in_progress():
+            self._seen_running = True
+        elif self._seen_running:
+            log.info("MCA: hardware measurement completed (time limit reached)")
+            self._stop()
+            self.measurement_done.emit()

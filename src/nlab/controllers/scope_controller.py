@@ -65,6 +65,10 @@ class ScopeController(QWidget):
         self._dma_filepath: Path | None = None
         self._dma_counter = 0
 
+        self._measurement_timer = QTimer(self)
+        self._measurement_timer.setSingleShot(True)
+        self._measurement_timer.timeout.connect(self._on_measurement_timeout)
+
         self._apply_parameter_specs()
         self._send_defaults()
         self._load_hardware_state()
@@ -247,6 +251,7 @@ class ScopeController(QWidget):
         self.ui.btnStop.setEnabled(True)
         interval_ms = 1000 // self.ui.spinRefreshRate.value()
         self._refresh_timer.start(interval_ms)
+        self._start_measurement_timer()
         log.info("Scope ch%d: acquisition started (refresh %d ms)", self._channel, interval_ms)
 
     def _start_with_dma(self) -> None:
@@ -292,10 +297,12 @@ class ScopeController(QWidget):
         self._refresh_timer.start(interval_ms)
         self.ui.btnStop.setEnabled(True)
         self.ui.lblRecordingStatus.setText("Recording...")
+        self._start_measurement_timer()
         log.info("Scope ch%d: DMA + acquisition started (socket was ready)", self._channel)
 
     def _on_stop(self) -> None:
         self._refresh_timer.stop()
+        self._measurement_timer.stop()
         self.ui.btnStop.setChecked(True)
 
         if self._dma_worker is not None:
@@ -313,6 +320,16 @@ class ScopeController(QWidget):
         self.ui.btnStop.setEnabled(False)
         self.ui.btnAcquireFrame.setEnabled(True)
         log.info("Scope ch%d: acquisition stopped", self._channel)
+
+    def _start_measurement_timer(self) -> None:
+        time_s = self.ui.spinTime.value()
+        if time_s > 0:
+            self._measurement_timer.start(time_s * 1000)
+            log.info("Scope ch%d: measurement timer set to %d s", self._channel, time_s)
+
+    def _on_measurement_timeout(self) -> None:
+        log.info("Scope ch%d: measurement time limit reached", self._channel)
+        self._on_stop()
 
     def _on_refresh_rate_changed(self, value: int) -> None:
         if self._refresh_timer.isActive():

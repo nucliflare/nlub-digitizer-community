@@ -340,7 +340,7 @@ class MCAStatistics:
         return self._b.get_events_lost()
 
     def get_elapsed_time(self) -> int:
-        # > ⚠️ UNVERIFIED: units — nlab_mca.py divides by 10 in get_enable_time()
+        """Return elapsed time in 0.1s ticks. Divide by 10 for seconds."""
         return self._b.get_elapsed_time()
 
     def get_pulse_overrange(self) -> int:
@@ -481,9 +481,11 @@ class MultiChannelAnalyzer:
         self._b.set_dpp_dma_enable(val)
 
     def get_time_limit(self) -> int:
+        """Return time limit in seconds. 0 = no limit."""
         return self._b.get_time_limit()
 
     def set_time_limit(self, val: int) -> None:
+        """Set time limit in seconds. 0 = no limit. HW auto-stops measurement when reached."""
         MCA_PARAMETER_SPECS[MCAParam.TIME_LIMIT].validate(val, "time_limit")
         self._b.set_time_limit(val)
 
