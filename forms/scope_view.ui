@@ -229,8 +229,13 @@
             <property name="text">
              <string>Start</string>
             </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
             <property name="styleSheet">
-             <string>background-color: #4CAF50; color: white; font-weight: bold;</string>
+             <string>QPushButton { background-color: #4CAF50; color: white; font-weight: bold; }
+QPushButton:checked { background-color: #2E7D32; border: 2px solid #1B5E20; }
+QPushButton:disabled { background-color: #A5D6A7; color: #E0E0E0; }</string>
             </property>
            </widget>
           </item>
@@ -242,8 +247,13 @@
             <property name="text">
              <string>Stop</string>
             </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
             <property name="styleSheet">
-             <string>background-color: #f44336; color: white; font-weight: bold;</string>
+             <string>QPushButton { background-color: #f44336; color: white; font-weight: bold; }
+QPushButton:checked { background-color: #C62828; border: 2px solid #B71C1C; }
+QPushButton:disabled { background-color: #EF9A9A; color: #E0E0E0; }</string>
             </property>
            </widget>
           </item>

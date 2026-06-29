@@ -232,7 +232,9 @@ class ScopeController(QWidget):
     # ------------------------------------------------------------------
 
     def _on_start(self) -> None:
+        self.ui.btnStart.setChecked(True)
         self.ui.btnStart.setEnabled(False)
+        self.ui.btnStop.setChecked(False)
         self.ui.btnAcquireFrame.setEnabled(False)
 
         if self.ui.cbDmaEnable.isChecked() and self._scope_dma is not None:
@@ -294,6 +296,7 @@ class ScopeController(QWidget):
 
     def _on_stop(self) -> None:
         self._refresh_timer.stop()
+        self.ui.btnStop.setChecked(True)
 
         if self._dma_worker is not None:
             log.debug("Scope ch%d: stopping with DMA", self._channel)
@@ -305,6 +308,7 @@ class ScopeController(QWidget):
             self._scope.stop()
 
         self._acquiring = False
+        self.ui.btnStart.setChecked(False)
         self.ui.btnStart.setEnabled(True)
         self.ui.btnStop.setEnabled(False)
         self.ui.btnAcquireFrame.setEnabled(True)
@@ -342,7 +346,9 @@ class ScopeController(QWidget):
         self._update_axis_ranges()
 
     def _on_acquire_frame(self) -> None:
+        self._scope.start()
         raw_frame = self._scope.acquire_frame()
+        self._scope.stop()
         value = self.ui.spinFrameSamples.value()
         frame = raw_frame[: value // 8]
         time_arr = np.arange(0, 8 * len(frame), 8)

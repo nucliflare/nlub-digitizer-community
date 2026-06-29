@@ -131,9 +131,7 @@ class PSUController(QWidget):
         if self._sipm_available:
             self.ui.cbSipmEnable.toggled.connect(
                 lambda v: (log.debug("PSU: sipm_enable=%s", v), self.hv.set_sipm_enable(int(v))))
-            self.ui.spinSipmVoltage.editingFinished.connect(
-                lambda: (log.debug("PSU: sipm_voltage=%.3f", self.ui.spinSipmVoltage.value()),
-                         self.hv.set_sipm_voltage(self.ui.spinSipmVoltage.value())))
+            self.ui.spinSipmVoltage.editingFinished.connect(self._on_sipm_voltage_changed)
             self.ui.comboSipmCompensMode.currentIndexChanged.connect(
                 lambda i: (log.debug("PSU: sipm_compens_mode=%d", i), self.hv.set_sipm_compens_mode(i)))
             self.ui.spinSipmCompensCt.editingFinished.connect(
@@ -143,9 +141,7 @@ class PSUController(QWidget):
                 lambda: (log.debug("PSU: sipm_compens_tref=%.2f", self.ui.spinSipmCompensTref.value()),
                          self.hv.set_sipm_compens_tref(self.ui.spinSipmCompensTref.value())))
 
-        self.ui.spinHvVoltage.editingFinished.connect(
-            lambda: (log.debug("PSU: hv_voltage=%.2f", self.ui.spinHvVoltage.value()),
-                     self.hv.set_hv_voltage(self.ui.spinHvVoltage.value())))
+        self.ui.spinHvVoltage.editingFinished.connect(self._on_hv_voltage_changed)
 
         self.ui.comboHvCompensMode.currentIndexChanged.connect(
             lambda i: (log.debug("PSU: hv_compens_mode=%d", i), self.hv.set_hv_compens_mode(i)))
@@ -221,6 +217,24 @@ class PSUController(QWidget):
     def _on_refresh_rate_changed(self, value: int) -> None:
         if self._worker is not None:
             self._worker.change_interval.emit(value)
+
+    def _on_hv_voltage_changed(self) -> None:
+        val = self.ui.spinHvVoltage.value()
+        log.debug("PSU: hv_voltage=%.2f", val)
+        self.hv.set_hv_voltage(val)
+        if self._worker is None:
+            readback = self.hv.get_hv_adc_voltage()
+            self.ui.lblHvVoltage.setText(f"{readback:.1f}")
+            log.debug("PSU: hv readback=%.1f", readback)
+
+    def _on_sipm_voltage_changed(self) -> None:
+        val = self.ui.spinSipmVoltage.value()
+        log.debug("PSU: sipm_voltage=%.3f", val)
+        self.hv.set_sipm_voltage(val)
+        if self._worker is None:
+            readback = self.hv.get_sipm_adc_voltage()
+            self.ui.lblSipmVoltage.setText(f"{readback:.2f}")
+            log.debug("PSU: sipm readback=%.2f", readback)
 
     # ------------------------------------------------------------------
     # Readback handling (main thread, via signal)

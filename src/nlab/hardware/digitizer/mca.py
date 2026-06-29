@@ -61,7 +61,7 @@ MCA_PARAMETER_SPECS: dict[MCAParam, ParameterSpec] = {
     # --- All ranges from hw_def.json (hardware ground truth) ---
     # int16_t (hw_def: MIN–MAX, step 1)
     MCAParam.TRIGGER_LEVEL:      RangeSpec(min_val=-32768, max_val=32767,      step=1,              default=-512),
-    # VDPP_PULSE_POLARITY (hw_def: 0–1)
+    # VDPP_PULSE_POLARITY (hw_def: 0–1); 0=negative (falling edge), 1=positive (rising edge)
     MCAParam.PULSE_POLARITY:     ListSpec(items=(0, 1),                                             default=0),
     # VDPP_BSLN_WIND enum (hw_def: 0–6); 0–6 map to 8/16/32/64/128/256/512 ns
     MCAParam.BASELINE_WINDOW:    ListSpec(items=(0, 1, 2, 3, 4, 5, 6),                              default=3),
@@ -430,9 +430,11 @@ class MultiChannelAnalyzer:
         self._b.set_dpp_trigger_level(val)
 
     def get_pulse_polarity(self) -> int:
+        """Return pulse polarity. 0 = negative (falling edge), 1 = positive (rising edge)."""
         return self._b.get_pulse_polarity()
 
     def set_pulse_polarity(self, val: int) -> None:
+        """Set pulse polarity. 0 = negative (falling edge), 1 = positive (rising edge)."""
         MCA_PARAMETER_SPECS[MCAParam.PULSE_POLARITY].validate(val, "pulse_polarity")
         self._b.set_pulse_polarity(val)
 

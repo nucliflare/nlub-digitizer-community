@@ -298,7 +298,9 @@ class MCAController(QWidget):
     # ------------------------------------------------------------------
 
     def _on_start(self) -> None:
+        self.ui.btnStart.setChecked(True)
         self.ui.btnStart.setEnabled(False)
+        self.ui.btnStop.setChecked(False)
 
         if self.ui.cbDmaEnable.isChecked() and self._mca_dma is not None:
             self._start_with_dma()
@@ -312,6 +314,8 @@ class MCAController(QWidget):
         log.info("MCA ch%d: measurement started", self._channel)
 
     def _on_stop(self) -> None:
+        self.ui.btnStop.setChecked(True)
+
         if self._dma_worker is not None:
             log.debug("MCA ch%d: stopping with DMA", self._channel)
             self._stop_worker()
@@ -324,6 +328,7 @@ class MCAController(QWidget):
             self._stop_worker()
             self._mca.stop()
 
+        self.ui.btnStart.setChecked(False)
         self.ui.btnStart.setEnabled(True)
         self.ui.btnStop.setEnabled(False)
         log.info("MCA ch%d: measurement stopped", self._channel)
