@@ -18,6 +18,8 @@ dependencies = [
     "grpcio>=1.64",
     "protobuf>=5.26",
     "pyzmq>=26.0",
+    "h5py>=3.11",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

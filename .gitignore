@@ -8,6 +8,8 @@ dist/
 build/
 measurements/
 hw_description/
+wiki/
+docs/.quarto/
 
 # Virtual environments
 .venv/

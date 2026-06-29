@@ -212,6 +212,27 @@ class MainWindowController:
         self._devices.clear()
         log.info("Shutdown complete")
 
+    def save_all_settings(self, path) -> None:
+        """Save settings for all channels to a single YAML file."""
+        from nlab.utils.settings_io import save_settings
+        for idx, device in enumerate(self._devices):
+            ch_path = path.with_stem(f"{path.stem}_ch{idx + 1}")
+            save_settings(device.scope, device.mca, device.hv, ch_path)
+        log.info("All channel settings saved to %s", path.parent)
+
+    def load_all_settings(self, path) -> None:
+        """Load settings from YAML and apply to hardware, then refresh UI."""
+        from nlab.utils.settings_io import load_settings
+        for idx, device in enumerate(self._devices):
+            ch_path = path.with_stem(f"{path.stem}_ch{idx + 1}")
+            if ch_path.exists():
+                load_settings(device.scope, device.mca, device.hv, ch_path)
+        for ctrl in self._scope_controllers:
+            ctrl._load_hardware_state()
+        for ctrl in self._mca_controllers:
+            ctrl._load_hardware_state()
+        log.info("All channel settings loaded and UI refreshed")
+
     def _connect_signals(self) -> None:
         self._window.ui.mainTabs.currentChanged.connect(self._on_tab_changed)
 

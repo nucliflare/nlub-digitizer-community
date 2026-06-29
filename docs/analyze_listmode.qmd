@@ -1,0 +1,156 @@
+---
+title: "MCA Listmode Event Analysis"
+format:
+  html:
+    code-fold: false
+jupyter: python3
+---
+
+```{python}
+#| label: config
+#| tags: [parameters]
+
+FILENAME = "D:/work/measurements/ch2_20260629_163156_005.h5"
+HIST_BINS = 16384
+HIST_RANGE = (0, 65536)
+```
+
+# Load Data
+
+```{python}
+#| label: load
+import h5py
+import numpy as np
+import matplotlib.pyplot as plt
+from fast_histogram import histogram1d
+
+with h5py.File(FILENAME, "r") as f:
+    events = f["events"][:]
+    energy = f["energy"][:]
+    psd_zc = f["psd_zc"][:]
+    channel = f.attrs["channel"]
+    timestamp = f.attrs["recording_timestamp"]
+    total_events = f.attrs["total_events"]
+
+print(f"File: {FILENAME}")
+print(f"Channel: {channel}")
+print(f"Total events: {total_events}")
+print(f"Event dtype: {events.dtype}")
+```
+
+# Event Statistics
+
+```{python}
+#| label: stats
+timestamps_s = events["timestamp"].astype(np.float64) * 8e-9
+
+duration = timestamps_s[-1] - timestamps_s[0] if len(timestamps_s) > 1 else 0
+rate = total_events / duration if duration > 0 else 0
+
+print(f"Duration: {duration:.2f} s")
+print(f"Average count rate: {rate:.1f} cps")
+print()
+print(f"Energy: min={energy.min()}, max={energy.max()}, "
+      f"mean={energy.mean():.1f}, std={energy.std():.1f}")
+print(f"Short energy: min={events['short_energy'].min()}, "
+      f"max={events['short_energy'].max()}")
+print(f"PSD ZC: min={psd_zc.min():.4f}, max={psd_zc.max():.4f}, "
+      f"mean={psd_zc.mean():.4f}")
+print(f"Markers: unique={np.unique(events['marker'])}")
+```
+
+# Energy Histogram
+
+```{python}
+#| label: energy-histogram
+#| fig-cap: "Energy spectrum built with fast_histogram"
+hist = histogram1d(energy.astype(np.float64), range=HIST_RANGE, bins=HIST_BINS)
+bin_edges = np.linspace(HIST_RANGE[0], HIST_RANGE[1], HIST_BINS + 1)
+bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.step(bin_centers, hist, where="mid", linewidth=0.5, color="C0")
+ax.fill_between(bin_centers, hist, step="mid", alpha=0.3, color="C0")
+ax.set_xlabel("Channel")
+ax.set_ylabel("Counts")
+ax.set_title(f"Energy Spectrum ({total_events} events, {HIST_BINS} bins)")
+ax.set_xlim(HIST_RANGE)
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+
+nonzero = hist[hist > 0]
+print(f"Non-zero bins: {len(nonzero)} / {HIST_BINS}")
+print(f"Max counts in single bin: {hist.max()}")
+print(f"Total counts: {hist.sum()}")
+```
+
+# Energy Histogram (Log Scale)
+
+```{python}
+#| label: energy-histogram-log
+#| fig-cap: "Energy spectrum (log scale)"
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.step(bin_centers, hist, where="mid", linewidth=0.5, color="C0")
+ax.fill_between(bin_centers, hist, step="mid", alpha=0.3, color="C0")
+ax.set_xlabel("Channel")
+ax.set_ylabel("Counts")
+ax.set_title("Energy Spectrum (log scale)")
+ax.set_yscale("log")
+ax.set_xlim(HIST_RANGE)
+ax.set_ylim(bottom=0.5)
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+# PSD Scatter Plot
+
+```{python}
+#| label: psd-scatter
+#| fig-cap: "Pulse Shape Discrimination: Energy vs PSD ZC"
+max_points = min(50000, total_events)
+if total_events > max_points:
+    idx = np.random.default_rng(42).choice(total_events, max_points, replace=False)
+    e_plot = energy[idx]
+    p_plot = psd_zc[idx]
+else:
+    e_plot = energy
+    p_plot = psd_zc
+
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.scatter(e_plot, p_plot, s=0.2, alpha=0.3, c="C0", rasterized=True)
+ax.set_xlabel("Energy [channel]")
+ax.set_ylabel("PSD ZC")
+ax.set_title(f"PSD Scatter ({len(e_plot)} events)")
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+# Count Rate Over Time
+
+```{python}
+#| label: count-rate
+#| fig-cap: "Count rate vs time (1 s bins)"
+if duration > 1:
+    time_bins = np.arange(timestamps_s[0], timestamps_s[-1], 1.0)
+    rate_hist = histogram1d(timestamps_s, range=(timestamps_s[0], timestamps_s[-1]),
+                            bins=max(1, int(duration)))
+    time_centers = np.arange(len(rate_hist)) + 0.5
+
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.step(time_centers, rate_hist, where="mid", color="C1", linewidth=0.8)
+    ax.fill_between(time_centers, rate_hist, step="mid", alpha=0.3, color="C1")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Counts per second")
+    ax.set_title("Count Rate")
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+    print(f"Mean rate: {rate_hist.mean():.1f} cps")
+    print(f"Std rate: {rate_hist.std():.1f} cps")
+else:
+    print("Duration too short for count rate plot")
+```

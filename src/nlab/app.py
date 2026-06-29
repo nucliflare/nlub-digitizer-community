@@ -53,7 +53,10 @@ class MainAppWindow(QMainWindow):
         self.resize(1024, 768)
 
         self.ui.actionExit.triggered.connect(self.close)
+        self.ui.actionConvertToHdf5.triggered.connect(self._on_convert_to_hdf5)
         self.ui.actionResetDocks.triggered.connect(self._on_reset_docks)
+        self.ui.actionSaveSettings.triggered.connect(self._on_save_settings)
+        self.ui.actionLoadSettings.triggered.connect(self._on_load_settings)
         self.ui.actionDmaSaveFolder.triggered.connect(self._on_dma_save_folder)
         self.ui.actionAbout.triggered.connect(self._on_about)
         self.ui.actionThirdPartyLicenses.triggered.connect(self._on_third_party_licenses)
@@ -108,6 +111,71 @@ class MainAppWindow(QMainWindow):
                                          logging.getLevelName(level))
         if checked and not self.ui.actionShowSystemLog.isChecked():
             self.ui.actionShowSystemLog.setChecked(True)
+
+    def _on_convert_to_hdf5(self) -> None:
+        from pathlib import Path
+        from nlab.utils.dma_converter import convert_listmode, convert_scope, read_file_header
+
+        src, _ = QFileDialog.getOpenFileName(
+            self, "Select Binary DMA File", "", "Binary files (*.bin);;All files (*)",
+        )
+        if not src:
+            return
+
+        dst, _ = QFileDialog.getSaveFileName(
+            self, "Save HDF5 File", str(Path(src).with_suffix(".h5")),
+            "HDF5 files (*.h5 *.hdf5);;All files (*)",
+        )
+        if not dst:
+            return
+
+        try:
+            with open(src, "rb") as f:
+                header = read_file_header(f)
+
+            if header["frame_samples"] > 0:
+                n = convert_scope(Path(src), Path(dst))
+                QMessageBox.information(self, "Conversion Complete",
+                                        f"Converted {n} scope frames to:\n{dst}")
+            else:
+                n = convert_listmode(Path(src), Path(dst))
+                QMessageBox.information(self, "Conversion Complete",
+                                        f"Converted {n} listmode events to:\n{dst}")
+        except Exception as e:
+            logging.getLogger(__name__).exception("HDF5 conversion failed")
+            QMessageBox.critical(self, "Conversion Failed", str(e))
+
+    def _on_save_settings(self) -> None:
+        from pathlib import Path
+        from nlab.utils.settings_io import save_settings
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Settings", "", "YAML files (*.yaml *.yml);;All files (*)",
+        )
+        if not path:
+            return
+
+        try:
+            self._controller.save_all_settings(Path(path))
+        except Exception as e:
+            logging.getLogger(__name__).exception("Failed to save settings")
+            QMessageBox.critical(self, "Save Failed", str(e))
+
+    def _on_load_settings(self) -> None:
+        from pathlib import Path
+        from nlab.utils.settings_io import load_settings
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load Settings", "", "YAML files (*.yaml *.yml);;All files (*)",
+        )
+        if not path:
+            return
+
+        try:
+            self._controller.load_all_settings(Path(path))
+        except Exception as e:
+            logging.getLogger(__name__).exception("Failed to load settings")
+            QMessageBox.critical(self, "Load Failed", str(e))
 
     def _on_reset_docks(self) -> None:
         self._controller.reset_dock_layout()
