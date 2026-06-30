@@ -28,7 +28,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENTRY = ROOT / "src" / "nlab" / "main.py"
-ICON = ROOT / "resources" / "icons" / "app.ico"
+ICON = ROOT / "resources" / "icons" / "ewt.ico"
 DIST = ROOT / "dist"
 WORK = ROOT / "build" / "pyinstaller"
 

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
 from nlab import __version__
 from nlab.controllers.main_window_controller import MainWindowController
 from nlab.ui.ui_main_window import Ui_MainWindow
+from nlab.utils.windows_icon import apply_taskbar_icon
 from nlab.views.license_dialog import LicenseDialog
 
 _ABOUT_TEXT = f"""\
@@ -41,6 +42,7 @@ class MainAppWindow(QMainWindow):
         # the taskbar icon doesn't reliably pick up the app-wide default for
         # every top-level window once more than one has been shown.
         self.setWindowIcon(QIcon(":/icons/ewt.ico"))
+        apply_taskbar_icon(self)
         self.setWindowTitle(f"Nuclear Lab Digitizer — {host}:{port}")
         self._controller = MainWindowController(self, host=host, port=port, channels=channels)
         self._apply_view_state()

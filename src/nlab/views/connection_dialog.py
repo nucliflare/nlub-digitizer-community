@@ -4,6 +4,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QWidget
 
 from nlab.ui.ui_connection_dialog import Ui_ConnectionDialog
+from nlab.utils.windows_icon import apply_taskbar_icon
 
 _MAX_RECENT_IPS = 10
 _DEFAULT_PORT = 50051
@@ -29,6 +30,7 @@ class ConnectionDialog(QDialog):
         self._ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).setText("Connect")
         self._ui.buttonBox.accepted.connect(self._on_accept)
         self._ui.buttonBox.rejected.connect(self.reject)
+        apply_taskbar_icon(self)
         self._load_settings()
 
     # ------------------------------------------------------------------
