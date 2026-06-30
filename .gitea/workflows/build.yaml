@@ -30,7 +30,7 @@ jobs:
         if: matrix.name == 'ubuntu'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libxkbcommon0 libxcb-cursor0 libxcb-icccm4 \
+          sudo apt-get install -y libgl1 libegl1 libxkbcommon0 libxcb-cursor0 libxcb-icccm4 \
             libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0
 
       - name: Install
@@ -45,6 +45,8 @@ jobs:
           mypy src/nlab
 
       - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: pytest
 
       - name: Build
