@@ -83,6 +83,7 @@ class ScopeDmaStreamer:
         """
         ctx = zmq.Context()
         socket = ctx.socket(zmq.SUB)
+        socket.setsockopt(zmq.LINGER, 0)      # don't block ctx.term() on unsent messages
         socket.setsockopt(zmq.SUBSCRIBE, b"")
         poller = zmq.Poller()
         poller.register(socket, zmq.POLLIN)
@@ -195,6 +196,7 @@ class McaDmaStreamer:
         """
         ctx = zmq.Context()
         socket = ctx.socket(zmq.SUB)
+        socket.setsockopt(zmq.LINGER, 0)      # don't block ctx.term() on unsent messages
         socket.setsockopt(zmq.SUBSCRIBE, b"")
         poller = zmq.Poller()
         poller.register(socket, zmq.POLLIN)

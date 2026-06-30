@@ -1,45 +1,48 @@
-"""Build a standalone folder distribution using Nuitka.
+"""Build a single-file executable using Nuitka.
 
 Prerequisites (all in [dev] extras):
     pip install -e ".[dev]"
 
 Run from the project root with the venv active:
-    python scripts/build_exe.py
+    python scripts/build_nuitka.py
 
-Output: dist/main.dist/nlab.exe  (Windows)  /  dist/main.dist/nlab  (Linux/macOS)
-The whole main.dist/ folder must ship together — nlab.exe alone won't run.
+Output: dist/nlab.exe  (Windows)  /  dist/nlab  (Linux/macOS)
 
 Nuitka notes
 ------------
-- --standalone:            folder-based dist, not a single bundled binary.
-                        --onefile (single .exe) was tried first but its
-                        runtime self-extraction step failed outright on this
-                        project (Windows "Bad Image" error) — --standalone
-                        has no extraction step and is what actually works.
+- --onefile:           single self-contained binary; on first launch it
+                       self-extracts to a temp dir then runs. Use
+                       --standalone for a faster-launching folder dist.
 - --enable-plugin=pyside6: required for PySide6 apps
-- --windows-console-mode=disable: no console window on Windows
+- --windows-console-mode=disable: no console window on Windows (ignored on Linux)
 - --include-module=PySide6.QtOpenGL(Widgets): pyqtgraph imports these for
-                        optional GPU acceleration; Nuitka's static analyzer
-                        doesn't discover them on its own and the build
-                        crashes at import time without this.
-- --nofollow-import-to / --include-data-dir for grpc/generated: the protoc-
-                        generated *_pb2.py files use bare `import x_pb2`
-                        (pre-3.20 protoc codegen style) instead of relative
-                        imports — see grpc/generated/__init__.py. The app
-                        works around this at runtime by inserting that
-                        directory into sys.path, which only works if those
-                        files exist as real on-disk .py files; compiling
-                        them into the binary (Nuitka's default) hides them
-                        from that sys.path trick entirely. Excluding the
-                        package from compilation and copying it as plain
-                        data preserves the working dev-mode behavior.
-- Compilation takes several minutes on first run; subsequent runs are faster.
+                       optional GPU acceleration; Nuitka's static analyzer
+                       doesn't discover them on its own.
+- --nofollow-import-to / --include-data-files for grpc/generated: the
+                       protoc-generated *_pb2.py files use bare `import x_pb2`
+                       (pre-3.20 protoc codegen style) instead of relative
+                       imports — see grpc/generated/__init__.py. The app
+                       works around this at runtime by inserting that
+                       directory into sys.path, which only works if those
+                       files exist as real on-disk .py files (in the onefile
+                       self-extraction temp dir). Excluding the package from
+                       compilation and shipping the .py files as data
+                       preserves that dev-mode behavior inside the archive.
+- --include-package=google.protobuf: the *_pb2.py files are loaded
+                       dynamically (excluded from static analysis), so
+                       Nuitka never sees their google.protobuf imports either
+                       — include it explicitly.
+- nlab.utils.windows_icon bundles resources/icons/ewt.ico as a real file
+                       so its native LoadImage/WM_SETICON override works at
+                       runtime inside the self-extraction temp dir.
+- Compilation takes several minutes on first run; subsequent runs are faster
+  (Nuitka caches compiled C objects between runs via ccache).
 
 Alternative: PyInstaller
 ------------------------
-If Nuitka is too complex for your workflow, PyInstaller is simpler:
-    pip install pyinstaller
-    pyinstaller --onefile --windowed --name nlab src/nlab/main.py
+    python scripts/build_pyinstaller.py
+PyInstaller is faster to build and easier to debug hidden-import issues.
+Nuitka produces smaller, faster-starting binaries and is used for releases.
 """
 
 import subprocess
@@ -54,40 +57,30 @@ DIST = ROOT / "dist"
 
 args = [
     sys.executable, "-m", "nuitka",
-    "--standalone",
+    "--standalone",     # folder dist; onefile triggers Windows Smart App Control on unsigned builds
     "--enable-plugin=pyside6",
-    "--windows-console-mode=disable",
-    f"--windows-icon-from-ico={ICON}",
     f"--output-dir={DIST}",
     "--output-filename=nlab",
-    # Include the whole package so all submodules are found at runtime:
     "--include-package=nlab",
-    # pyqtgraph's optional OpenGL acceleration path — not auto-discovered:
     "--include-module=PySide6.QtOpenGL",
     "--include-module=PySide6.QtOpenGLWidgets",
-    # Keep the generated gRPC stubs as plain files (see module docstring)
-    # rather than compiled-in, so their bare `import x_pb2` style still
-    # resolves via the sys.path trick in grpc/generated/__init__.py. Since
-    # they're then loaded dynamically at runtime, Nuitka's static import
-    # scan never sees their `from google.protobuf import ...` either —
-    # include it explicitly too.
     "--nofollow-import-to=nlab.hardware.grpc.generated",
     "--include-package=google.protobuf",
-    # --include-data-dir silently skips .py files ("code files"); these
-    # specifically need to ship as plain .py, so --include-data-files instead:
-    f"--include-data-files={GENERATED_PROTO_DIR}\\*.py=nlab/hardware/grpc/generated/",
-    # nlab.utils.windows_icon's native taskbar-icon override needs a real
-    # on-disk .ico — bundle it next to the exe for that runtime lookup:
+    f"--include-data-files={GENERATED_PROTO_DIR}/*.py=nlab/hardware/grpc/generated/",
     f"--include-data-files={ICON}=resources/icons/ewt.ico",
-    str(ENTRY),
 ]
+
+if sys.platform == "win32":
+    args += [
+        "--windows-console-mode=disable",
+        f"--windows-icon-from-ico={ICON}",
+    ]
 
 
 def main() -> None:
     DIST.mkdir(exist_ok=True)
     print("Building with Nuitka — this may take a few minutes...")
-    print("Command:", " ".join(str(a) for a in args))
-    subprocess.run(args, check=True)
+    subprocess.run([*args, str(ENTRY)], check=True)
     print(f"\nBuild complete. Output in {DIST}/")
 
 

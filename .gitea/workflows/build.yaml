@@ -13,11 +13,11 @@ jobs:
           - name: windows
             runs-on: windows-local
             venv-python: .venv/Scripts/python.exe
-            artifact: dist/nlab.exe
+            artifact: dist/main.dist
           - name: ubuntu
             runs-on: ubuntu-local
             venv-python: .venv/bin/python
-            artifact: dist/nlab
+            artifact: dist/main.dist
     runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +59,7 @@ jobs:
         run: ${{ matrix.venv-python }} -m pytest
 
       - name: Build
-        run: ${{ matrix.venv-python }} scripts/build_pyinstaller.py
+        run: ${{ matrix.venv-python }} scripts/build_nuitka.py
 
       - uses: actions/upload-artifact@v3
         with:
