@@ -168,22 +168,37 @@ class MainWindowController:
 
         log.info("Dock layout reset to default (tabbed)")
 
+    def set_roi_visible(self, visible: bool) -> None:
+        """Toggle the ROI selection tool + stats panel on every MCA histogram."""
+        for ctrl in self._mca_controllers:
+            ctrl.set_roi_visible(visible)
+        log.info("ROI %s on all MCA histograms", "shown" if visible else "hidden")
+
+    def set_log_y(self, enabled: bool) -> None:
+        """Toggle logarithmic Y-axis on every MCA histogram."""
+        for ctrl in self._mca_controllers:
+            ctrl.set_log_y(enabled)
+        log.info("Histogram Y-axis set to %s", "log" if enabled else "linear")
+
+    def reset_all_zoom(self) -> None:
+        """Auto-range/reset zoom on every scope and MCA plot."""
+        for ctrl in self._scope_controllers:
+            ctrl.reset_zoom()
+        for ctrl in self._mca_controllers:
+            ctrl.reset_zoom()
+        log.info("Zoom reset on all plots")
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def shutdown(self) -> None:
-        """Persist dock layout, stop all workers, close all devices."""
-        log.info("Shutdown: persisting state")
-        self._save_dock_state()
-        for ctrl in self._scope_controllers:
-            ctrl.save_display_settings()
-
+    def _stop_all_workers(self) -> None:
+        """Stop all running timers/workers (blocking). Devices stay open."""
         # 1. Stop scope timers — no new workers will be submitted
         for ctrl in self._scope_controllers:
             ctrl._refresh_timer.stop()
 
-        # 2. Stop DMA workers (blocking — app is shutting down)
+        # 2. Stop DMA workers (blocking)
         for ctrl in self._scope_controllers:
             ctrl.stop_dma_sync()
         for ctrl in self._mca_controllers:
@@ -205,12 +220,61 @@ class MainWindowController:
             self._thread.wait()
             self._thread = None
 
-        # 7. All workers done — safe to close hardware
+    def shutdown(self) -> None:
+        """Persist dock layout, stop all workers, close all devices."""
+        log.info("Shutdown: persisting state")
+        self._save_dock_state()
+        for ctrl in self._scope_controllers:
+            ctrl.save_display_settings()
+
+        self._stop_all_workers()
+
         log.info("Shutdown: closing hardware connections")
         for device in self._devices:
             device.close()
         self._devices.clear()
         log.info("Shutdown complete")
+
+    def reconnect(self) -> None:
+        """Tear down all devices/controllers and reconnect from scratch.
+
+        Keeps the window and dock layout positions; rebuilds the channel
+        docks and their controllers since they hold direct references to
+        the (now-closed) backend connections.
+        """
+        log.info("Reconnect: stopping workers and closing current devices")
+        self._save_dock_state()
+        for ctrl in self._scope_controllers:
+            ctrl.save_display_settings()
+
+        self._stop_all_workers()
+
+        for device in self._devices:
+            device.close()
+        self._devices.clear()
+
+        for host in (self._scope_dock_host, self._mca_dock_host, self._psu_dock_host):
+            for dock in host.findChildren(QDockWidget):
+                host.removeDockWidget(dock)
+                widget = dock.widget()
+                if widget is not None:
+                    widget.deleteLater()
+                dock.deleteLater()
+
+        self._scope_controllers.clear()
+        self._mca_controllers.clear()
+        self._psu_controllers.clear()
+
+        log.info("Reconnect: connecting to %s:%d, %d channel(s)", self._host, self._port, self._channels)
+        for ch in range(1, 1 + self._channels):
+            device = Digitizer.from_grpc(channel=ch, hostname=self._host, port=self._port)
+            self._devices.append(device)
+        log.info("Reconnect: all %d device(s) connected", len(self._devices))
+
+        self._build_channel_docks()
+        self._restore_dock_state()
+        log.info("Reconnect complete, %d scope / %d MCA / %d PSU controllers",
+                 len(self._scope_controllers), len(self._mca_controllers), len(self._psu_controllers))
 
     def save_all_settings(self, path) -> None:
         """Save settings for all channels to a single YAML file."""

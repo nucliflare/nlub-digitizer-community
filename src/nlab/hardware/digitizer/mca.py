@@ -6,122 +6,122 @@ from typing import TypedDict, Union
 import numpy as np
 
 from .backends.base import MCABackend
-from .scope import ParameterSpec, RangeSpec, ListSpec
-
+from .scope import ListSpec, ParameterSpec, RangeSpec
 
 # ---------------------------------------------------------------------------
 # MCA parameter enum — values equal the corresponding vdpp_config.json widget id
 # ---------------------------------------------------------------------------
 
+
 class MCAParam(IntEnum):
     # --- JSON widget ids (value == id in vdpp_config.json "mca" section) ---
-    PULSE_POLARITY     = 6
-    TRIGGER_LEVEL      = 7
+    PULSE_POLARITY = 6
+    TRIGGER_LEVEL = 7
     PRETRIGGER_SAMPLES = 8
-    FRAME_SAMPLES      = 9
-    ENERGY_BIN         = 10
-    TRG_SOURCE         = 13
-    BASELINE_WINDOW    = 14
-    CFD_FACTOR         = 15
-    CFD_DELAY          = 16
-    CRRC2_CDELAY       = 17
-    CRRC2_FDELAY       = 18
-    CC_ENABLE          = 19
-    CC_TIME            = 20
-    TRAPEZ_ENABLE      = 21
-    TRAPEZ_R           = 22
-    TRAPEZ_M           = 23
-    TRAPEZ_T           = 24
-    TRAPEZ_E           = 25
-    TRAPEZ_FT          = 26
-    TIME_LIMIT         = 28
-    CRRC2_PZC          = 46
-    LP_COEFFS          = 51   # coefficients array returned at id 51
-    CFD_ENABLE         = 52
-    CFD_TW_LOW         = 53
-    CFD_TW_HIGH        = 54
-    MEM1_SIG_SELECT    = 57
-    MEM2_SIG_SELECT    = 58
-    EXT_TRIG_ENABLE    = 61
-    PILEUP_WINDOW      = 62
-    EDGE_DET_COEFF     = 68
-    TEMP_COEFF         = 69   # vdpp_config.json "hw" section
-    TEMP_OFFSET        = 70   # vdpp_config.json "hw" section
-    PSD_ZC_ENABLE      = 71
-    PSD_ZC_MODE        = 72
-    PSD_ZC_LOW         = 73
-    PSD_ZC_HIGH        = 74
+    FRAME_SAMPLES = 9
+    ENERGY_BIN = 10
+    TRG_SOURCE = 13
+    BASELINE_WINDOW = 14
+    CFD_FACTOR = 15
+    CFD_DELAY = 16
+    CRRC2_CDELAY = 17
+    CRRC2_FDELAY = 18
+    CC_ENABLE = 19
+    CC_TIME = 20
+    TRAPEZ_ENABLE = 21
+    TRAPEZ_R = 22
+    TRAPEZ_M = 23
+    TRAPEZ_T = 24
+    TRAPEZ_E = 25
+    TRAPEZ_FT = 26
+    TIME_LIMIT = 28
+    CRRC2_PZC = 46
+    LP_COEFFS = 51  # coefficients array returned at id 51
+    CFD_ENABLE = 52
+    CFD_TW_LOW = 53
+    CFD_TW_HIGH = 54
+    MEM1_SIG_SELECT = 57
+    MEM2_SIG_SELECT = 58
+    EXT_TRIG_ENABLE = 61
+    PILEUP_WINDOW = 62
+    EDGE_DET_COEFF = 68
+    TEMP_COEFF = 69  # vdpp_config.json "hw" section
+    TEMP_OFFSET = 70  # vdpp_config.json "hw" section
+    PSD_ZC_ENABLE = 71
+    PSD_ZC_MODE = 72
+    PSD_ZC_LOW = 73
+    PSD_ZC_HIGH = 74
     # --- internal — no JSON widget id ---
-    GLOBAL_ENABLE      = 200
-    DMA_ENABLED        = 201
-    LP_PRESET          = 202  # write-only preset loader (0=200 MHz, 1=700 MHz, 2=average)
+    GLOBAL_ENABLE = 200
+    DMA_ENABLED = 201
+    LP_PRESET = 202  # write-only preset loader (0=200 MHz, 1=700 MHz, 2=average)
 
 
 MCA_PARAMETER_SPECS: dict[MCAParam, ParameterSpec] = {
     # --- All ranges from hw_def.json (hardware ground truth) ---
     # int16_t (hw_def: MIN–MAX, step 1)
-    MCAParam.TRIGGER_LEVEL:      RangeSpec(min_val=-32768, max_val=32767,      step=1,              default=-512),
+    MCAParam.TRIGGER_LEVEL: RangeSpec(min_val=-32768, max_val=32767, step=1, default=-512),
     # VDPP_PULSE_POLARITY (hw_def: 0–1); 0=negative (falling edge), 1=positive (rising edge)
-    MCAParam.PULSE_POLARITY:     ListSpec(items=(0, 1),                                             default=0),
+    MCAParam.PULSE_POLARITY: ListSpec(items=(0, 1), default=0),
     # VDPP_BSLN_WIND enum (hw_def: 0–6); 0–6 map to 8/16/32/64/128/256/512 ns
-    MCAParam.BASELINE_WINDOW:    ListSpec(items=(0, 1, 2, 3, 4, 5, 6),                              default=3),
+    MCAParam.BASELINE_WINDOW: ListSpec(items=(0, 1, 2, 3, 4, 5, 6), default=3),
     # uint16_t (hw_def: 0–4094, step 2)
-    MCAParam.PRETRIGGER_SAMPLES: RangeSpec(min_val=0,      max_val=4094,       step=2,              default=24),
+    MCAParam.PRETRIGGER_SAMPLES: RangeSpec(min_val=0, max_val=4094, step=2, default=24),
     # uint16_t (hw_def: 0–8190, step 2)
-    MCAParam.FRAME_SAMPLES:      RangeSpec(min_val=0,      max_val=8190,       step=2,              default=256),
+    MCAParam.FRAME_SAMPLES: RangeSpec(min_val=0, max_val=8190, step=2, default=256),
     # VDPP_HIST_BIN enum (hw_def: 0–9); index → divisor: 0=1, 1=2, 2=4, ..., 9=512
-    MCAParam.ENERGY_BIN:         ListSpec(items=(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),                    default=0),
+    MCAParam.ENERGY_BIN: ListSpec(items=(0, 1, 2, 3, 4, 5, 6, 7, 8, 9), default=0),
     # uint8_t (hw_def: 0–255, step 1)
-    MCAParam.PILEUP_WINDOW:      RangeSpec(min_val=0,      max_val=255,        step=1,              default=0),
+    MCAParam.PILEUP_WINDOW: RangeSpec(min_val=0, max_val=255, step=1, default=0),
     # uint32_t (hw_def: 0–16777216, step 1)
-    MCAParam.TIME_LIMIT:         RangeSpec(min_val=0,      max_val=16777216,   step=1,              default=0),
-    MCAParam.GLOBAL_ENABLE:      ListSpec(items=(False, True),                                      default=False),
+    MCAParam.TIME_LIMIT: RangeSpec(min_val=0, max_val=16777216, step=1, default=0),
+    MCAParam.GLOBAL_ENABLE: ListSpec(items=(False, True), default=False),
     # float on wire; FPGA register is 16-bit fixed-point (xinput_filters_hw.h: temp_coeff_V)
-    MCAParam.TEMP_COEFF:         RangeSpec(min_val=-1.0,   max_val=1.0,        step=1e-9,           default=-0.00026735),
+    MCAParam.TEMP_COEFF: RangeSpec(min_val=-1.0, max_val=1.0, step=1e-9, default=-0.00026735),
     # int16_t (hw_def for temp_offset not present; using input.txt C type range)
-    MCAParam.TEMP_OFFSET:        RangeSpec(min_val=-32768, max_val=32767,      step=1,              default=7),
-    MCAParam.TRAPEZ_ENABLE:      ListSpec(items=(False, True),                                      default=False),
+    MCAParam.TEMP_OFFSET: RangeSpec(min_val=-32768, max_val=32767, step=1, default=7),
+    MCAParam.TRAPEZ_ENABLE: ListSpec(items=(False, True), default=False),
     # uint16_t (hw_def: 0–4088, step 8)
-    MCAParam.TRAPEZ_R:           RangeSpec(min_val=0,      max_val=4088,       step=8,              default=64),
-    MCAParam.TRAPEZ_M:           RangeSpec(min_val=0,      max_val=4088,       step=8,              default=64),
+    MCAParam.TRAPEZ_R: RangeSpec(min_val=0, max_val=4088, step=8, default=64),
+    MCAParam.TRAPEZ_M: RangeSpec(min_val=0, max_val=4088, step=8, default=64),
     # uint32_t (hw_def: MIN–MAX, step 1)
-    MCAParam.TRAPEZ_T:           RangeSpec(min_val=0,      max_val=4294967295, step=1,              default=96),
+    MCAParam.TRAPEZ_T: RangeSpec(min_val=0, max_val=4294967295, step=1, default=96),
     # uint16_t (hw_def: 0–16376, step 8)
-    MCAParam.TRAPEZ_E:           RangeSpec(min_val=0,      max_val=16376,      step=8,              default=256),
+    MCAParam.TRAPEZ_E: RangeSpec(min_val=0, max_val=16376, step=8, default=256),
     # VDPP_TRAPEZ_WINDOW enum (hw_def: 0–6)
-    MCAParam.TRAPEZ_FT:          ListSpec(items=(0, 1, 2, 3, 4, 5, 6),                              default=0),
-    MCAParam.CFD_ENABLE:         ListSpec(items=(False, True),                                      default=False),
+    MCAParam.TRAPEZ_FT: ListSpec(items=(0, 1, 2, 3, 4, 5, 6), default=0),
+    MCAParam.CFD_ENABLE: ListSpec(items=(False, True), default=False),
     # double on wire; FPGA is 16-bit fixed-point (hw_def: 0–0.99994, step ~2^-14)
-    MCAParam.CFD_FACTOR:         RangeSpec(min_val=0.0,    max_val=0.99994,    step=6.103515625e-5, default=0.4),
+    MCAParam.CFD_FACTOR: RangeSpec(min_val=0.0, max_val=0.99994, step=6.103515625e-5, default=0.4),
     # uint16_t (hw_def: 0–254, step 2)
-    MCAParam.CFD_DELAY:          RangeSpec(min_val=0,      max_val=254,        step=2,              default=2),
-    MCAParam.CC_ENABLE:          ListSpec(items=(False, True),                                      default=False),
+    MCAParam.CFD_DELAY: RangeSpec(min_val=0, max_val=254, step=2, default=2),
+    MCAParam.CC_ENABLE: ListSpec(items=(False, True), default=False),
     # uint16_t (hw_def: 0–65534, step 2)
-    MCAParam.CC_TIME:            RangeSpec(min_val=0,      max_val=65534,      step=2,              default=8),
+    MCAParam.CC_TIME: RangeSpec(min_val=0, max_val=65534, step=2, default=8),
     # VDPP_TRG_SRC enum (hw_def: 0–2); 0=threshold, 1=CFD, 2=CR-RC2
-    MCAParam.TRG_SOURCE:         ListSpec(items=(0, 1, 2),                                          default=0),
+    MCAParam.TRG_SOURCE: ListSpec(items=(0, 1, 2), default=0),
     # uint16_t (hw_def: 8–504, step 8)
-    MCAParam.CRRC2_CDELAY:       RangeSpec(min_val=8,      max_val=504,        step=8,              default=8),
+    MCAParam.CRRC2_CDELAY: RangeSpec(min_val=8, max_val=504, step=8, default=8),
     # uint16_t (hw_def: 8–1016, step 8)
-    MCAParam.CRRC2_FDELAY:       RangeSpec(min_val=8,      max_val=1016,       step=8,              default=8),
+    MCAParam.CRRC2_FDELAY: RangeSpec(min_val=8, max_val=1016, step=8, default=8),
     # int16_t (hw_def: MIN–MAX, step 1)
-    MCAParam.CRRC2_PZC:          RangeSpec(min_val=-32768, max_val=32767,      step=1,              default=32761),
+    MCAParam.CRRC2_PZC: RangeSpec(min_val=-32768, max_val=32767, step=1, default=32761),
     # uint16_t (hw_def: 0–65534, step 2)
-    MCAParam.CFD_TW_LOW:         RangeSpec(min_val=0,      max_val=65534,      step=2,              default=8),
-    MCAParam.CFD_TW_HIGH:        RangeSpec(min_val=0,      max_val=65534,      step=2,              default=64),
+    MCAParam.CFD_TW_LOW: RangeSpec(min_val=0, max_val=65534, step=2, default=8),
+    MCAParam.CFD_TW_HIGH: RangeSpec(min_val=0, max_val=65534, step=2, default=64),
     # VDPP_DBG_SIGNAL enum (hw_def: 0–6)
-    MCAParam.MEM1_SIG_SELECT:    ListSpec(items=(0, 1, 2, 3, 4, 5, 6),                              default=0),
-    MCAParam.MEM2_SIG_SELECT:    ListSpec(items=(0, 1, 2, 3, 4, 5, 6),                              default=1),
-    MCAParam.EXT_TRIG_ENABLE:    ListSpec(items=(False, True),                                      default=False),
+    MCAParam.MEM1_SIG_SELECT: ListSpec(items=(0, 1, 2, 3, 4, 5, 6), default=0),
+    MCAParam.MEM2_SIG_SELECT: ListSpec(items=(0, 1, 2, 3, 4, 5, 6), default=1),
+    MCAParam.EXT_TRIG_ENABLE: ListSpec(items=(False, True), default=False),
     # uint32_t (hw_def: not present; using full C type range)
-    MCAParam.EDGE_DET_COEFF:     RangeSpec(min_val=0,      max_val=4294967295, step=1,              default=0),
+    MCAParam.EDGE_DET_COEFF: RangeSpec(min_val=0, max_val=4294967295, step=1, default=1),
     # psd_zc registers not in hw_def.json; ranges from FPGA register headers (1-bit / 16-bit)
-    MCAParam.PSD_ZC_ENABLE:      ListSpec(items=(False, True),                                      default=False),
-    MCAParam.PSD_ZC_MODE:        ListSpec(items=(0, 1),                                             default=0),
-    MCAParam.PSD_ZC_LOW:         RangeSpec(min_val=0,      max_val=65534,      step=2,              default=8),
-    MCAParam.PSD_ZC_HIGH:        RangeSpec(min_val=0,      max_val=65534,      step=2,              default=16),
+    MCAParam.PSD_ZC_ENABLE: ListSpec(items=(False, True), default=False),
+    MCAParam.PSD_ZC_MODE: ListSpec(items=(0, 1), default=0),
+    MCAParam.PSD_ZC_LOW: RangeSpec(min_val=0, max_val=65534, step=2, default=8),
+    MCAParam.PSD_ZC_HIGH: RangeSpec(min_val=0, max_val=65534, step=2, default=16),
     # uint8_t (hw_def: 0–2, step 1); 0=200 MHz, 1=700 MHz, 2=average
-    MCAParam.LP_PRESET:          ListSpec(items=(0, 1, 2),                                          default=0),
+    MCAParam.LP_PRESET: ListSpec(items=(0, 1, 2), default=0),
 }
 
 
@@ -133,6 +133,7 @@ class MCASettingEntry(TypedDict):
 # ---------------------------------------------------------------------------
 # Filter sub-objects
 # ---------------------------------------------------------------------------
+
 
 class Trapezoid:
     def __init__(self, backend: MCABackend) -> None:
@@ -314,17 +315,18 @@ class MCAFilters:
     """Groups all DSP filter settings under named sub-objects."""
 
     def __init__(self, backend: MCABackend) -> None:
-        self.trapezoid         = Trapezoid(backend)
-        self.cfd               = CFD(backend)
-        self.crrc2             = CRRC2(backend)
+        self.trapezoid = Trapezoid(backend)
+        self.cfd = CFD(backend)
+        self.crrc2 = CRRC2(backend)
         self.charge_comparison = ChargeComparison(backend)
-        self.psd_zc            = PSDZeroCrossing(backend)
-        self.lp                = LPFilter(backend)
+        self.psd_zc = PSDZeroCrossing(backend)
+        self.lp = LPFilter(backend)
 
 
 # ---------------------------------------------------------------------------
 # Read-only statistics view
 # ---------------------------------------------------------------------------
+
 
 class MCAStatistics:
     def __init__(self, backend: MCABackend) -> None:
@@ -363,6 +365,7 @@ class MCAStatistics:
 # Sync trigger view (channel-independent)
 # ---------------------------------------------------------------------------
 
+
 class SyncTrigger:
     def __init__(self, backend: MCABackend) -> None:
         self._b = backend
@@ -398,6 +401,7 @@ class SyncTrigger:
 # MultiChannelAnalyzer
 # ---------------------------------------------------------------------------
 
+
 class MultiChannelAnalyzer:
     """High-level MCA / DPP interface."""
 
@@ -405,9 +409,9 @@ class MultiChannelAnalyzer:
 
     def __init__(self, backend: MCABackend) -> None:
         self._b = backend
-        self.filters    = MCAFilters(backend)
+        self.filters = MCAFilters(backend)
         self.statistics = MCAStatistics(backend)
-        self.sync       = SyncTrigger(backend)
+        self.sync = SyncTrigger(backend)
 
     # ---- device info ----
 
@@ -589,40 +593,40 @@ class MultiChannelAnalyzer:
         LP coefficients (LP_COEFFS) are returned as list[int] via .tolist().
         """
         return [
-            MCASettingEntry(id=int(MCAParam.PULSE_POLARITY),    value=self.get_pulse_polarity()),
-            MCASettingEntry(id=int(MCAParam.TRIGGER_LEVEL),     value=self.get_trigger_level()),
-            MCASettingEntry(id=int(MCAParam.PRETRIGGER_SAMPLES),value=self.get_pretrigger_samples()),
-            MCASettingEntry(id=int(MCAParam.FRAME_SAMPLES),     value=self.get_frame_samples()),
-            MCASettingEntry(id=int(MCAParam.ENERGY_BIN),        value=self.get_energy_bin()),
-            MCASettingEntry(id=int(MCAParam.TRG_SOURCE),        value=self.get_trg_source()),
-            MCASettingEntry(id=int(MCAParam.BASELINE_WINDOW),   value=self.get_baseline_window()),
-            MCASettingEntry(id=int(MCAParam.CFD_FACTOR),        value=self.filters.cfd.get_factor()),
-            MCASettingEntry(id=int(MCAParam.CFD_DELAY),         value=self.filters.cfd.get_delay()),
-            MCASettingEntry(id=int(MCAParam.CRRC2_CDELAY),      value=self.filters.crrc2.get_Cdelay()),
-            MCASettingEntry(id=int(MCAParam.CRRC2_FDELAY),      value=self.filters.crrc2.get_Fdelay()),
-            MCASettingEntry(id=int(MCAParam.CC_ENABLE),         value=self.filters.charge_comparison.get_enable()),
-            MCASettingEntry(id=int(MCAParam.CC_TIME),           value=self.filters.charge_comparison.get_time()),
-            MCASettingEntry(id=int(MCAParam.TRAPEZ_ENABLE),     value=self.filters.trapezoid.get_enable()),
-            MCASettingEntry(id=int(MCAParam.TRAPEZ_R),          value=self.filters.trapezoid.get_R()),
-            MCASettingEntry(id=int(MCAParam.TRAPEZ_M),          value=self.filters.trapezoid.get_M()),
-            MCASettingEntry(id=int(MCAParam.TRAPEZ_T),          value=self.filters.trapezoid.get_T()),
-            MCASettingEntry(id=int(MCAParam.TRAPEZ_E),          value=self.filters.trapezoid.get_E()),
-            MCASettingEntry(id=int(MCAParam.TRAPEZ_FT),         value=self.filters.trapezoid.get_FT()),
-            MCASettingEntry(id=int(MCAParam.TIME_LIMIT),        value=self.get_time_limit()),
-            MCASettingEntry(id=int(MCAParam.CRRC2_PZC),         value=self.filters.crrc2.get_pzc_coeff()),
-            MCASettingEntry(id=int(MCAParam.LP_COEFFS),         value=self.filters.lp.get_coeffs().tolist()),
-            MCASettingEntry(id=int(MCAParam.CFD_ENABLE),        value=self.filters.cfd.get_enable()),
-            MCASettingEntry(id=int(MCAParam.CFD_TW_LOW),        value=self.filters.cfd.get_time_window_low()),
-            MCASettingEntry(id=int(MCAParam.CFD_TW_HIGH),       value=self.filters.cfd.get_time_window_high()),
-            MCASettingEntry(id=int(MCAParam.MEM1_SIG_SELECT),   value=self.get_mem1_sig_select()),
-            MCASettingEntry(id=int(MCAParam.MEM2_SIG_SELECT),   value=self.get_mem2_sig_select()),
-            MCASettingEntry(id=int(MCAParam.EXT_TRIG_ENABLE),   value=self.get_ext_trig_enable()),
-            MCASettingEntry(id=int(MCAParam.PILEUP_WINDOW),     value=self.get_pileup_window()),
-            MCASettingEntry(id=int(MCAParam.EDGE_DET_COEFF),    value=self.get_edge_det_coeff()),
-            MCASettingEntry(id=int(MCAParam.TEMP_COEFF),        value=self.get_temp_coeff()),
-            MCASettingEntry(id=int(MCAParam.TEMP_OFFSET),       value=self.get_temp_offset()),
-            MCASettingEntry(id=int(MCAParam.PSD_ZC_ENABLE),     value=self.filters.psd_zc.get_enable()),
-            MCASettingEntry(id=int(MCAParam.PSD_ZC_MODE),       value=self.filters.psd_zc.get_mode()),
-            MCASettingEntry(id=int(MCAParam.PSD_ZC_LOW),        value=self.filters.psd_zc.get_time_window_low()),
-            MCASettingEntry(id=int(MCAParam.PSD_ZC_HIGH),       value=self.filters.psd_zc.get_time_window_high()),
+            MCASettingEntry(id=int(MCAParam.PULSE_POLARITY), value=self.get_pulse_polarity()),
+            MCASettingEntry(id=int(MCAParam.TRIGGER_LEVEL), value=self.get_trigger_level()),
+            MCASettingEntry(id=int(MCAParam.PRETRIGGER_SAMPLES), value=self.get_pretrigger_samples()),
+            MCASettingEntry(id=int(MCAParam.FRAME_SAMPLES), value=self.get_frame_samples()),
+            MCASettingEntry(id=int(MCAParam.ENERGY_BIN), value=self.get_energy_bin()),
+            MCASettingEntry(id=int(MCAParam.TRG_SOURCE), value=self.get_trg_source()),
+            MCASettingEntry(id=int(MCAParam.BASELINE_WINDOW), value=self.get_baseline_window()),
+            MCASettingEntry(id=int(MCAParam.CFD_FACTOR), value=self.filters.cfd.get_factor()),
+            MCASettingEntry(id=int(MCAParam.CFD_DELAY), value=self.filters.cfd.get_delay()),
+            MCASettingEntry(id=int(MCAParam.CRRC2_CDELAY), value=self.filters.crrc2.get_Cdelay()),
+            MCASettingEntry(id=int(MCAParam.CRRC2_FDELAY), value=self.filters.crrc2.get_Fdelay()),
+            MCASettingEntry(id=int(MCAParam.CC_ENABLE), value=self.filters.charge_comparison.get_enable()),
+            MCASettingEntry(id=int(MCAParam.CC_TIME), value=self.filters.charge_comparison.get_time()),
+            MCASettingEntry(id=int(MCAParam.TRAPEZ_ENABLE), value=self.filters.trapezoid.get_enable()),
+            MCASettingEntry(id=int(MCAParam.TRAPEZ_R), value=self.filters.trapezoid.get_R()),
+            MCASettingEntry(id=int(MCAParam.TRAPEZ_M), value=self.filters.trapezoid.get_M()),
+            MCASettingEntry(id=int(MCAParam.TRAPEZ_T), value=self.filters.trapezoid.get_T()),
+            MCASettingEntry(id=int(MCAParam.TRAPEZ_E), value=self.filters.trapezoid.get_E()),
+            MCASettingEntry(id=int(MCAParam.TRAPEZ_FT), value=self.filters.trapezoid.get_FT()),
+            MCASettingEntry(id=int(MCAParam.TIME_LIMIT), value=self.get_time_limit()),
+            MCASettingEntry(id=int(MCAParam.CRRC2_PZC), value=self.filters.crrc2.get_pzc_coeff()),
+            MCASettingEntry(id=int(MCAParam.LP_COEFFS), value=self.filters.lp.get_coeffs().tolist()),
+            MCASettingEntry(id=int(MCAParam.CFD_ENABLE), value=self.filters.cfd.get_enable()),
+            MCASettingEntry(id=int(MCAParam.CFD_TW_LOW), value=self.filters.cfd.get_time_window_low()),
+            MCASettingEntry(id=int(MCAParam.CFD_TW_HIGH), value=self.filters.cfd.get_time_window_high()),
+            MCASettingEntry(id=int(MCAParam.MEM1_SIG_SELECT), value=self.get_mem1_sig_select()),
+            MCASettingEntry(id=int(MCAParam.MEM2_SIG_SELECT), value=self.get_mem2_sig_select()),
+            MCASettingEntry(id=int(MCAParam.EXT_TRIG_ENABLE), value=self.get_ext_trig_enable()),
+            MCASettingEntry(id=int(MCAParam.PILEUP_WINDOW), value=self.get_pileup_window()),
+            MCASettingEntry(id=int(MCAParam.EDGE_DET_COEFF), value=self.get_edge_det_coeff()),
+            MCASettingEntry(id=int(MCAParam.TEMP_COEFF), value=self.get_temp_coeff()),
+            MCASettingEntry(id=int(MCAParam.TEMP_OFFSET), value=self.get_temp_offset()),
+            MCASettingEntry(id=int(MCAParam.PSD_ZC_ENABLE), value=self.filters.psd_zc.get_enable()),
+            MCASettingEntry(id=int(MCAParam.PSD_ZC_MODE), value=self.filters.psd_zc.get_mode()),
+            MCASettingEntry(id=int(MCAParam.PSD_ZC_LOW), value=self.filters.psd_zc.get_time_window_low()),
+            MCASettingEntry(id=int(MCAParam.PSD_ZC_HIGH), value=self.filters.psd_zc.get_time_window_high()),
         ]

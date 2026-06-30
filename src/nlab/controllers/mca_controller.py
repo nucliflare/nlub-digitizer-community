@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QSettings, QThread
-from PySide6.QtWidgets import QFileDialog, QMenuBar, QSlider, QSpinBox, QWidget
+from PySide6.QtWidgets import QFileDialog, QSlider, QSpinBox, QWidget
 
 from nlab.hardware.digitizer.dma import McaDmaStreamer
 from nlab.hardware.digitizer.mca import MCA_PARAMETER_SPECS, MCAParam, MultiChannelAnalyzer
@@ -60,10 +60,12 @@ class MCAController(QWidget):
         self._event_buffer: list = []
         self._event_lock = threading.Lock()
 
+        self._last_histogram: np.ndarray | None = None
+        self._last_elapsed_s: float = 0.0
+
         self._populate_combos()
         self._send_defaults()
         self._load_hardware_state()
-        self._setup_view_menu()
         self._setup_debug_plot()
         self._setup_histogram_plot()
         self._connect_signals()
@@ -91,19 +93,62 @@ class MCAController(QWidget):
 
     def _send_defaults(self) -> None:
         specs = MCA_PARAMETER_SPECS
+
+        # Signal
         self._mca.set_trigger_level(int(specs[MCAParam.TRIGGER_LEVEL].default))
         self._mca.set_pulse_polarity(int(specs[MCAParam.PULSE_POLARITY].default))
         self._mca.set_baseline_window(int(specs[MCAParam.BASELINE_WINDOW].default))
         self._mca.set_pretrigger_samples(int(specs[MCAParam.PRETRIGGER_SAMPLES].default))
         self._mca.set_frame_samples(int(specs[MCAParam.FRAME_SAMPLES].default))
+        self._mca.set_trg_source(int(specs[MCAParam.TRG_SOURCE].default))
+        self._mca.set_ext_trig_enable(bool(specs[MCAParam.EXT_TRIG_ENABLE].default))
+        self._mca.set_edge_det_coeff(int(specs[MCAParam.EDGE_DET_COEFF].default))
+
+        # Acquisition
         self._mca.set_energy_bin(int(specs[MCAParam.ENERGY_BIN].default))
         self._mca.set_pileup_window(int(specs[MCAParam.PILEUP_WINDOW].default))
         self._mca.set_time_limit(int(specs[MCAParam.TIME_LIMIT].default))
-        self._mca.set_trg_source(int(specs[MCAParam.TRG_SOURCE].default))
-        self._mca.set_ext_trig_enable(bool(specs[MCAParam.EXT_TRIG_ENABLE].default))
+
+        # Debug signal routing
         self._mca.set_mem1_sig_select(int(specs[MCAParam.MEM1_SIG_SELECT].default))
         self._mca.set_mem2_sig_select(int(specs[MCAParam.MEM2_SIG_SELECT].default))
-        log.info("MCA ch%d: defaults sent to hardware", self._channel)
+
+        # CR-RC2 / LP filter
+        self._mca.filters.lp.set_preset(int(specs[MCAParam.LP_PRESET].default))
+        self._mca.filters.crrc2.set_Cdelay(int(specs[MCAParam.CRRC2_CDELAY].default))
+        self._mca.filters.crrc2.set_Fdelay(int(specs[MCAParam.CRRC2_FDELAY].default))
+        self._mca.filters.crrc2.set_pzc_coeff(int(specs[MCAParam.CRRC2_PZC].default))
+
+        # CFD
+        self._mca.filters.cfd.set_enable(bool(specs[MCAParam.CFD_ENABLE].default))
+        self._mca.filters.cfd.set_factor(float(specs[MCAParam.CFD_FACTOR].default))
+        self._mca.filters.cfd.set_delay(int(specs[MCAParam.CFD_DELAY].default))
+        self._mca.filters.cfd.set_time_window_low(int(specs[MCAParam.CFD_TW_LOW].default))
+        self._mca.filters.cfd.set_time_window_high(int(specs[MCAParam.CFD_TW_HIGH].default))
+
+        # Trapezoid
+        self._mca.filters.trapezoid.set_enable(bool(specs[MCAParam.TRAPEZ_ENABLE].default))
+        self._mca.filters.trapezoid.set_R(int(specs[MCAParam.TRAPEZ_R].default))
+        self._mca.filters.trapezoid.set_M(int(specs[MCAParam.TRAPEZ_M].default))
+        self._mca.filters.trapezoid.set_T(int(specs[MCAParam.TRAPEZ_T].default))
+        self._mca.filters.trapezoid.set_E(int(specs[MCAParam.TRAPEZ_E].default))
+        self._mca.filters.trapezoid.set_FT(int(specs[MCAParam.TRAPEZ_FT].default))
+
+        # Charge comparison (PSD)
+        self._mca.filters.charge_comparison.set_enable(bool(specs[MCAParam.CC_ENABLE].default))
+        self._mca.filters.charge_comparison.set_time(int(specs[MCAParam.CC_TIME].default))
+
+        # PSD zero-crossing
+        self._mca.filters.psd_zc.set_enable(bool(specs[MCAParam.PSD_ZC_ENABLE].default))
+        self._mca.filters.psd_zc.set_mode(int(specs[MCAParam.PSD_ZC_MODE].default))
+        self._mca.filters.psd_zc.set_time_window_low(int(specs[MCAParam.PSD_ZC_LOW].default))
+        self._mca.filters.psd_zc.set_time_window_high(int(specs[MCAParam.PSD_ZC_HIGH].default))
+
+        # Temperature compensation
+        self._mca.set_temp_coeff(float(specs[MCAParam.TEMP_COEFF].default))
+        self._mca.set_temp_offset(int(specs[MCAParam.TEMP_OFFSET].default))
+
+        log.info("MCA ch%d: defaults sent to hardware (full parameter set)", self._channel)
 
     def _load_hardware_state(self) -> None:
         self.ui.spinTriggerLevel.setValue(self._mca.get_trigger_level())
@@ -121,6 +166,49 @@ class MCAController(QWidget):
         self.ui.cbExtTrigger.setChecked(self._mca.get_ext_trig_enable())
         self.ui.comboDebug1.setCurrentIndex(self._mca.get_mem1_sig_select())
         self.ui.comboDebug2.setCurrentIndex(self._mca.get_mem2_sig_select())
+        self.ui.spinEdgeDetCoeff.setValue(self._mca.get_edge_det_coeff())
+
+        # CR-RC2 (LP preset is write-only on the device, no readback)
+        self.ui.spinCrrc2Cdelay.setValue(self._mca.filters.crrc2.get_Cdelay())
+        self.ui.sliderCrrc2Cdelay.setValue(self._mca.filters.crrc2.get_Cdelay())
+        self.ui.spinCrrc2Fdelay.setValue(self._mca.filters.crrc2.get_Fdelay())
+        self.ui.sliderCrrc2Fdelay.setValue(self._mca.filters.crrc2.get_Fdelay())
+        self.ui.spinCrrc2Pzc.setValue(self._mca.filters.crrc2.get_pzc_coeff())
+        self.ui.sliderCrrc2Pzc.setValue(self._mca.filters.crrc2.get_pzc_coeff())
+
+        # CFD
+        self.ui.cbCfdEnable.setChecked(self._mca.filters.cfd.get_enable())
+        self.ui.spinCfdFactor.setValue(self._mca.filters.cfd.get_factor())
+        self.ui.spinCfdDelay.setValue(self._mca.filters.cfd.get_delay())
+        self.ui.sliderCfdDelay.setValue(self._mca.filters.cfd.get_delay())
+        self.ui.spinCfdTwLow.setValue(self._mca.filters.cfd.get_time_window_low())
+        self.ui.spinCfdTwHigh.setValue(self._mca.filters.cfd.get_time_window_high())
+
+        # Trapezoid
+        self.ui.cbTrapezEnable.setChecked(self._mca.filters.trapezoid.get_enable())
+        self.ui.spinTrapR.setValue(self._mca.filters.trapezoid.get_R())
+        self.ui.sliderTrapR.setValue(self._mca.filters.trapezoid.get_R())
+        self.ui.spinTrapM.setValue(self._mca.filters.trapezoid.get_M())
+        self.ui.sliderTrapM.setValue(self._mca.filters.trapezoid.get_M())
+        self.ui.spinTrapT.setValue(self._mca.filters.trapezoid.get_T())
+        self.ui.spinTrapE.setValue(self._mca.filters.trapezoid.get_E())
+        self.ui.sliderTrapE.setValue(self._mca.filters.trapezoid.get_E())
+        self.ui.comboTrapFt.setCurrentIndex(self._mca.filters.trapezoid.get_FT())
+
+        # Charge comparison (PSD)
+        self.ui.cbCcEnable.setChecked(self._mca.filters.charge_comparison.get_enable())
+        self.ui.spinCcTime.setValue(self._mca.filters.charge_comparison.get_time())
+
+        # PSD zero-crossing
+        self.ui.cbPsdZcEnable.setChecked(self._mca.filters.psd_zc.get_enable())
+        self.ui.comboPsdZcMode.setCurrentIndex(self._mca.filters.psd_zc.get_mode())
+        self.ui.spinPsdZcLow.setValue(self._mca.filters.psd_zc.get_time_window_low())
+        self.ui.spinPsdZcHigh.setValue(self._mca.filters.psd_zc.get_time_window_high())
+
+        # Temperature compensation
+        self.ui.spinTempCoeff.setValue(self._mca.get_temp_coeff())
+        self.ui.spinTempOffset.setValue(self._mca.get_temp_offset())
+
         log.info("MCA ch%d: hardware state loaded into UI", self._channel)
 
     # ------------------------------------------------------------------
@@ -133,19 +221,6 @@ class MCAController(QWidget):
         self.ui.tabFilters.setEnabled(enabled)
         self.ui.spinTimeLimit.setEnabled(enabled)
         self.ui.spinRefreshRate.setEnabled(enabled)
-
-    # ------------------------------------------------------------------
-    # View menu with ROI toggle
-    # ------------------------------------------------------------------
-
-    def _setup_view_menu(self) -> None:
-        menu_bar = QMenuBar(self)
-        menu_bar.setNativeMenuBar(False)
-        view_menu = menu_bar.addMenu("View")
-        self._roi_action = view_menu.addAction("Show ROI")
-        self._roi_action.setCheckable(True)
-        self._roi_action.toggled.connect(self._toggle_roi)
-        self.ui.mainLayout.insertWidget(0, menu_bar)
 
     # ------------------------------------------------------------------
     # Debug plot (scope-like, two curves)
@@ -204,9 +279,96 @@ class MCAController(QWidget):
         self._roi.setZValue(10)
         self._hist_plot.addItem(self._roi)
         self._roi.setVisible(False)
+        self._roi.sigRegionChanged.connect(self._update_roi_stats)
 
-    def _toggle_roi(self, visible: bool) -> None:
+    def set_roi_visible(self, visible: bool) -> None:
+        """Show/hide the ROI selection tool and its stats panel."""
         self._roi.setVisible(visible)
+        self.ui.roiStatsPanel.setVisible(visible)
+        if visible:
+            self._update_roi_stats()
+
+    def set_log_y(self, enabled: bool) -> None:
+        """Toggle logarithmic Y-axis on the histogram plot."""
+        self._hist_plot.setLogMode(y=enabled)
+
+    def reset_zoom(self) -> None:
+        """Auto-range the debug and histogram plots."""
+        self._debug_plot.autoRange()
+        self._hist_plot.autoRange()
+
+    # ------------------------------------------------------------------
+    # ROI statistics (gross counts, peak centroid/FWHM estimate — no curve fit)
+    # ------------------------------------------------------------------
+
+    def _update_roi_stats(self) -> None:
+        if not self._roi.isVisible():
+            return
+        if self._last_histogram is None or len(self._last_histogram) == 0:
+            self.ui.lblRoiStats.setText("No histogram data yet.")
+            return
+
+        histogram = self._last_histogram
+        n_bins = len(histogram)
+
+        left, right = self._roi.getRegion()
+        low_bin = int(np.clip(round(left), 0, n_bins - 1))
+        high_bin = int(np.clip(round(right), 0, n_bins - 1))
+        if high_bin < low_bin:
+            low_bin, high_bin = high_bin, low_bin
+        width = high_bin - low_bin + 1
+
+        window = histogram[low_bin:high_bin + 1].astype(np.float64)
+        bins = np.arange(low_bin, high_bin + 1, dtype=np.float64)
+
+        gross_counts = float(window.sum())
+        gross_unc = np.sqrt(gross_counts) if gross_counts > 0 else 0.0
+        rel_unc_pct = (gross_unc / gross_counts * 100.0) if gross_counts > 0 else float("nan")
+
+        if self._last_elapsed_s > 0:
+            cps_line = f"  CPS:                {gross_counts / self._last_elapsed_s:.2f}"
+        else:
+            cps_line = "  CPS:                N/A (no live time)"
+
+        if gross_counts > 0:
+            max_idx_local = int(np.argmax(window))
+            max_bin_pos = low_bin + max_idx_local
+            max_bin_counts = window[max_idx_local]
+
+            centroid = float((bins * window).sum() / gross_counts)
+            variance = float((window * (bins - centroid) ** 2).sum() / gross_counts)
+            sigma = np.sqrt(variance) if variance > 0 else 0.0
+            fwhm = 2.3548 * sigma
+            resolution_pct = (fwhm / centroid * 100.0) if centroid > 0 else float("nan")
+
+            peak_lines = (
+                f"  Max bin position:   {max_bin_pos}\n"
+                f"  Max bin counts:     {max_bin_counts:.0f}\n"
+                f"  Centroid:           {centroid:.2f}\n"
+                f"  Weighted sigma:     {sigma:.2f}\n"
+                f"  Approx. FWHM:       {fwhm:.2f}\n"
+                f"  Approx. resolution: {resolution_pct:.2f} %"
+            )
+        else:
+            peak_lines = "  No counts in ROI"
+
+        text = (
+            f"ROI\n"
+            f"  Left marker:        {low_bin}\n"
+            f"  Right marker:       {high_bin}\n"
+            f"  Width [bins]:       {width}\n"
+            f"  Energy/ch range:    {low_bin}-{high_bin}\n"
+            f"\n"
+            f"Counts\n"
+            f"  Gross counts:       {gross_counts:.0f}\n"
+            f"  Gross uncertainty:  {gross_unc:.2f}\n"
+            f"  Relative unc.:      {rel_unc_pct:.2f} %\n"
+            f"{cps_line}\n"
+            f"\n"
+            f"Peak\n"
+            f"{peak_lines}"
+        )
+        self.ui.lblRoiStats.setText(text)
 
     # ------------------------------------------------------------------
     # Signal wiring
@@ -237,6 +399,7 @@ class MCAController(QWidget):
         self.ui.btnStart.clicked.connect(self._on_start)
         self.ui.btnStop.clicked.connect(self._on_stop)
         self.ui.btnClearSpectrum.clicked.connect(self._on_clear_spectrum)
+        self.ui.btnExportCsv.clicked.connect(self._on_export_csv)
         self.ui.cbDmaEnable.toggled.connect(lambda v: self._mca.set_dma_enable(v))
         self.ui.btnDmaFile.clicked.connect(self._on_dma_file)
         self.ui.spinRefreshRate.valueChanged.connect(self._on_refresh_rate_changed)
@@ -245,7 +408,7 @@ class MCAController(QWidget):
         self._wire_slider_spinbox(self.ui.sliderFrameSamples, self.ui.spinFrameSamples, lambda v: self._mca.set_frame_samples(v))
         self._wire_slider_spinbox(self.ui.sliderPretrigger, self.ui.spinPretrigger, lambda v: self._mca.set_pretrigger_samples(v))
         self.ui.comboTriggerSource.currentIndexChanged.connect(lambda i: self._mca.set_trg_source(i))
-        self.ui.spinEdgeDetCoeff.editingFinished.connect(lambda: self._mca.set_edge_det_coeff(self.ui.spinEdgeDetCoeff.value()))
+        self.ui.spinEdgeDetCoeff.editingFinished.connect(lambda: self._mca.set_edge_det_coeff(int(self.ui.spinEdgeDetCoeff.value())))
 
         self.ui.comboLpPreset.currentIndexChanged.connect(lambda i: self._mca.filters.lp.set_preset(i))
 
@@ -262,7 +425,7 @@ class MCAController(QWidget):
         self.ui.cbTrapezEnable.toggled.connect(lambda v: self._mca.filters.trapezoid.set_enable(v))
         self._wire_slider_spinbox(self.ui.sliderTrapR, self.ui.spinTrapR, lambda v: self._mca.filters.trapezoid.set_R(v))
         self._wire_slider_spinbox(self.ui.sliderTrapM, self.ui.spinTrapM, lambda v: self._mca.filters.trapezoid.set_M(v))
-        self.ui.spinTrapT.editingFinished.connect(lambda: self._mca.filters.trapezoid.set_T(self.ui.spinTrapT.value()))
+        self.ui.spinTrapT.editingFinished.connect(lambda: self._mca.filters.trapezoid.set_T(int(self.ui.spinTrapT.value())))
         self._wire_slider_spinbox(self.ui.sliderTrapE, self.ui.spinTrapE, lambda v: self._mca.filters.trapezoid.set_E(v))
         self.ui.comboTrapFt.currentIndexChanged.connect(lambda i: self._mca.filters.trapezoid.set_FT(i))
 
@@ -352,6 +515,35 @@ class MCAController(QWidget):
     def _on_clear_spectrum(self) -> None:
         self._mca.clear_spectrum()
         self._hist_curve.setData([], [])
+        self._last_histogram = None
+        if self._roi.isVisible():
+            self._update_roi_stats()
+
+    def _on_export_csv(self) -> None:
+        if self._last_histogram is None or len(self._last_histogram) == 0:
+            log.warning("MCA ch%d: no spectrum to export", self._channel)
+            return
+
+        default_dir = str(QSettings().value("dma/save_folder", "measurements"))
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        default_name = f"{default_dir}/ch{self._channel}_spectrum_{ts}.csv"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Spectrum CSV", default_name, "CSV files (*.csv);;All files (*)",
+        )
+        if not path:
+            return
+
+        with open(path, "w", newline="") as f:
+            f.write(f"# MCA channel {self._channel} spectrum export\n")
+            f.write(f"# elapsed_s={self._last_elapsed_s:.1f}\n")
+            if self._roi.isVisible():
+                for line in self.ui.lblRoiStats.text().splitlines():
+                    f.write(f"# {line}\n")
+            f.write("channel,counts\n")
+            for ch, counts in enumerate(self._last_histogram):
+                f.write(f"{ch},{int(counts)}\n")
+
+        log.info("MCA ch%d: spectrum exported to %s", self._channel, path)
 
     # ------------------------------------------------------------------
     # Polling worker lifecycle (gRPC histogram/stats)
@@ -516,10 +708,14 @@ class MCAController(QWidget):
     def _update_histogram(self, histogram: np.ndarray) -> None:
         if histogram is None or len(histogram) == 0:
             return
+        self._last_histogram = histogram
         channels = np.arange(len(histogram) + 1)
         self._hist_curve.setData(channels, histogram)
+        if self._roi.isVisible():
+            self._update_roi_stats()
 
     def _update_statistics(self, rb: MCAReadback) -> None:
+        self._last_elapsed_s = rb.elapsed_time / 10.0
         self.ui.lblCountRate.setText(str(rb.count_rate))
         self.ui.lblDeadTime.setText(str(rb.pulse_deadtime))
         self.ui.lblElapsedTime.setText(f"{rb.elapsed_time / 10:.1f}")

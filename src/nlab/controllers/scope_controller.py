@@ -170,6 +170,10 @@ class ScopeController(QWidget):
         s.setValue(self._settings_key("persistence"), self.ui.dialPersistence.value())
         s.setValue(self._settings_key("refresh_rate"), self.ui.spinRefreshRate.value())
 
+    def reset_zoom(self) -> None:
+        """Reset the waveform plot to its default fixed range."""
+        self._update_axis_ranges()
+
     # ------------------------------------------------------------------
     # Enable/disable parameter controls during DMA
     # ------------------------------------------------------------------

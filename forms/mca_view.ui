@@ -341,9 +341,10 @@ QPushButton:disabled { background-color: #EF9A9A; color: #E0E0E0; }</string></pr
             </widget>
            </item>
            <item row="4" column="1">
-            <widget class="QSpinBox" name="spinEdgeDetCoeff">
-             <property name="minimum"><number>0</number></property>
-             <property name="maximum"><number>999999999</number></property>
+            <widget class="QDoubleSpinBox" name="spinEdgeDetCoeff">
+             <property name="decimals"><number>0</number></property>
+             <property name="minimum"><double>0</double></property>
+             <property name="maximum"><double>4294967295</double></property>
             </widget>
            </item>
           </layout>
@@ -591,10 +592,11 @@ QPushButton:disabled { background-color: #EF9A9A; color: #E0E0E0; }</string></pr
              </widget>
             </item>
             <item row="3" column="1">
-             <widget class="QSpinBox" name="spinTrapT">
-              <property name="minimum"><number>0</number></property>
-              <property name="maximum"><number>999999999</number></property>
-              <property name="value"><number>96</number></property>
+             <widget class="QDoubleSpinBox" name="spinTrapT">
+              <property name="decimals"><number>0</number></property>
+              <property name="minimum"><double>0</double></property>
+              <property name="maximum"><double>4294967295</double></property>
+              <property name="value"><double>96</double></property>
              </widget>
             </item>
             <item row="4" column="0">
@@ -866,6 +868,12 @@ QPushButton:disabled { background-color: #EF9A9A; color: #E0E0E0; }</string></pr
         </item>
 
         <item>
+         <widget class="QPushButton" name="btnExportCsv">
+          <property name="text"><string>Export Spectrum CSV...</string></property>
+         </widget>
+        </item>
+
+        <item>
          <spacer name="verticalSpacer">
           <property name="orientation"><enum>Qt::Orientation::Vertical</enum></property>
           <property name="sizeHint" stdset="0">
@@ -879,7 +887,7 @@ QPushButton:disabled { background-color: #EF9A9A; color: #E0E0E0; }</string></pr
      </item>
 
      <item>
-      <layout class="QVBoxLayout" name="plotColumn">
+      <layout class="QVBoxLayout" name="plotColumn" stretch="1,2">
        <property name="spacing"><number>4</number></property>
        <item>
         <widget class="NLabPlotWidget" name="plotDebug" native="true">
@@ -889,21 +897,53 @@ QPushButton:disabled { background-color: #EF9A9A; color: #E0E0E0; }</string></pr
           </sizepolicy>
          </property>
          <property name="minimumSize">
-          <size><width>400</width><height>200</height></size>
+          <size><width>400</width><height>150</height></size>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="NLabPlotWidget" name="plotHistogram" native="true">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-           <horstretch>1</horstretch><verstretch>1</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="minimumSize">
-          <size><width>400</width><height>200</height></size>
-         </property>
-        </widget>
+        <layout class="QHBoxLayout" name="histogramRow">
+         <property name="spacing"><number>4</number></property>
+         <item>
+          <widget class="NLabPlotWidget" name="plotHistogram" native="true">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+             <horstretch>1</horstretch><verstretch>1</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size><width>400</width><height>200</height></size>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QWidget" name="roiStatsPanel">
+           <property name="visible"><bool>false</bool></property>
+           <property name="minimumSize"><size><width>230</width><height>0</height></size></property>
+           <property name="maximumSize"><size><width>230</width><height>16777215</height></size></property>
+           <layout class="QVBoxLayout" name="roiStatsLayout">
+            <property name="leftMargin"><number>4</number></property>
+            <property name="topMargin"><number>4</number></property>
+            <property name="rightMargin"><number>4</number></property>
+            <property name="bottomMargin"><number>4</number></property>
+            <item>
+             <widget class="QLabel" name="lblRoiStats">
+              <property name="text"><string>ROI stats unavailable</string></property>
+              <property name="alignment"><set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set></property>
+              <property name="wordWrap"><bool>true</bool></property>
+              <property name="font"><font><family>Consolas</family><pointsize>9</pointsize></font></property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="roiStatsSpacer">
+              <property name="orientation"><enum>Qt::Orientation::Vertical</enum></property>
+              <property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
        </item>
       </layout>
      </item>

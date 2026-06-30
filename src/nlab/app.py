@@ -27,6 +27,8 @@ Source: <a href="https://github.com/ewt/nlab-community">github.com/ewt/nlab-comm
 _KEY_SHOW_LOG = "developer/show_system_log"
 _KEY_DEBUG_MODE = "developer/debug_mode"
 _KEY_DMA_FOLDER = "dma/save_folder"
+_KEY_SHOW_ROI = "view/show_roi"
+_KEY_LOG_Y = "view/log_y"
 
 
 class MainAppWindow(QMainWindow):
@@ -37,6 +39,7 @@ class MainAppWindow(QMainWindow):
         self._setup_ui()
         self.setWindowTitle(f"Nuclear Lab Digitizer — {host}:{port}")
         self._controller = MainWindowController(self, host=host, port=port, channels=channels)
+        self._apply_view_state()
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         self._save_developer_settings()
@@ -54,7 +57,11 @@ class MainAppWindow(QMainWindow):
 
         self.ui.actionExit.triggered.connect(self.close)
         self.ui.actionConvertToHdf5.triggered.connect(self._on_convert_to_hdf5)
+        self.ui.actionReconnectDevice.triggered.connect(self._on_reconnect_device)
         self.ui.actionResetDocks.triggered.connect(self._on_reset_docks)
+        self.ui.actionResetZoom.triggered.connect(self._on_reset_zoom)
+        self.ui.actionShowRoi.toggled.connect(self._on_show_roi_toggled)
+        self.ui.actionLogY.toggled.connect(self._on_log_y_toggled)
         self.ui.actionSaveSettings.triggered.connect(self._on_save_settings)
         self.ui.actionLoadSettings.triggered.connect(self._on_load_settings)
         self.ui.actionDmaSaveFolder.triggered.connect(self._on_dma_save_folder)
@@ -73,24 +80,39 @@ class MainAppWindow(QMainWindow):
         settings = QSettings()
         show_log = settings.value(_KEY_SHOW_LOG, False, type=bool)
         debug_mode = settings.value(_KEY_DEBUG_MODE, False, type=bool)
+        show_roi = settings.value(_KEY_SHOW_ROI, False, type=bool)
+        log_y = settings.value(_KEY_LOG_Y, False, type=bool)
 
         # Suppress intermediate toggled signals while restoring state.
         self.ui.actionShowSystemLog.blockSignals(True)
         self.ui.actionDebugMode.blockSignals(True)
+        self.ui.actionShowRoi.blockSignals(True)
+        self.ui.actionLogY.blockSignals(True)
 
         self.ui.actionShowSystemLog.setChecked(show_log)
         self.ui.actionDebugMode.setChecked(debug_mode)
+        self.ui.actionShowRoi.setChecked(show_roi)
+        self.ui.actionLogY.setChecked(log_y)
         self._set_log_tab_visible(show_log)
         if debug_mode:
             logging.getLogger().setLevel(logging.DEBUG)
 
         self.ui.actionShowSystemLog.blockSignals(False)
         self.ui.actionDebugMode.blockSignals(False)
+        self.ui.actionShowRoi.blockSignals(False)
+        self.ui.actionLogY.blockSignals(False)
 
     def _save_developer_settings(self) -> None:
         settings = QSettings()
         settings.setValue(_KEY_SHOW_LOG, self.ui.actionShowSystemLog.isChecked())
         settings.setValue(_KEY_DEBUG_MODE, self.ui.actionDebugMode.isChecked())
+        settings.setValue(_KEY_SHOW_ROI, self.ui.actionShowRoi.isChecked())
+        settings.setValue(_KEY_LOG_Y, self.ui.actionLogY.isChecked())
+
+    def _apply_view_state(self) -> None:
+        """Re-apply persisted view toggles to the (re)built MCA controllers."""
+        self._controller.set_roi_visible(self.ui.actionShowRoi.isChecked())
+        self._controller.set_log_y(self.ui.actionLogY.isChecked())
 
     def _set_log_tab_visible(self, visible: bool) -> None:
         idx = self.ui.mainTabs.indexOf(self.ui.tabSystemLog)
@@ -176,6 +198,32 @@ class MainAppWindow(QMainWindow):
         except Exception as e:
             logging.getLogger(__name__).exception("Failed to load settings")
             QMessageBox.critical(self, "Load Failed", str(e))
+
+    def _on_show_roi_toggled(self, checked: bool) -> None:
+        self._controller.set_roi_visible(checked)
+
+    def _on_log_y_toggled(self, checked: bool) -> None:
+        self._controller.set_log_y(checked)
+
+    def _on_reset_zoom(self) -> None:
+        self._controller.reset_all_zoom()
+
+    def _on_reconnect_device(self) -> None:
+        reply = QMessageBox.question(
+            self, "Reconnect Device",
+            "This will stop all running measurements and re-establish the "
+            "device connection. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self._controller.reconnect()
+            self._apply_view_state()
+            QMessageBox.information(self, "Reconnect", "Device reconnected successfully.")
+        except Exception as e:
+            logging.getLogger(__name__).exception("Reconnect failed")
+            QMessageBox.critical(self, "Reconnect Failed", str(e))
 
     def _on_reset_docks(self) -> None:
         self._controller.reset_dock_layout()
