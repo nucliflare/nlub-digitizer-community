@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QSettings, Qt, QThread, QThreadPool
 from PySide6.QtWidgets import QDockWidget, QMainWindow, QWidget
 
+from nlab.controllers.external_device_controller import ExternalDeviceController
 from nlab.controllers.mca_controller import MCAController
 from nlab.controllers.psu_controller import PSUController
 from nlab.controllers.scope_controller import ScopeController
 from nlab.hardware.digitizer.digitizer import Digitizer
+from nlab.hardware.modbus_devices import ExternalDevices
 
 if TYPE_CHECKING:
     from nlab.app import MainAppWindow
@@ -47,16 +49,21 @@ class MainWindowController:
         self._scope_controllers: list[ScopeController] = []
         self._mca_controllers: list[MCAController] = []
         self._psu_controllers: list[PSUController] = []
+        self._external_controllers: list[ExternalDeviceController] = []
+        self._external_devices = ExternalDevices()
         self._thread: QThread | None = None
 
         self._scope_dock_host = self._make_dock_host()
         self._mca_dock_host = self._make_dock_host()
         self._psu_dock_host = self._make_dock_host()
+        self._external_dock_host = self._make_dock_host()
         self._build_channel_docks()
+        self._build_external_docks()
         self._restore_dock_state()
         self._connect_signals()
-        log.info("UI initialized, %d scope / %d MCA / %d PSU controllers",
-                 len(self._scope_controllers), len(self._mca_controllers), len(self._psu_controllers))
+        log.info("UI initialized, %d scope / %d MCA / %d PSU / %d external controllers",
+                 len(self._scope_controllers), len(self._mca_controllers),
+                 len(self._psu_controllers), len(self._external_controllers))
 
     # ------------------------------------------------------------------
     # Dock construction
@@ -123,6 +130,25 @@ class MainWindowController:
         self._window.ui.layoutTabMCA.addWidget(self._mca_dock_host)
         self._window.ui.layoutTabPSU.addWidget(self._psu_dock_host)
 
+    def _build_external_docks(self) -> None:
+        """Discover Modbus devices on the digitizer host and dock one tab each.
+
+        The SiPM bias board, Geiger-Mueller probe, and PMT HV supply share the
+        digitizer's RS-485 bus via a ser2net TCP bridge — same host as the
+        gRPC digitizer connection. A device that doesn't respond (not present,
+        or bus not bridged) is simply absent from the discovery results.
+        """
+        devices = self._external_devices.discover(self._host)
+        docks: list[QDockWidget] = []
+        for idx, device in enumerate(devices):
+            ctrl = ExternalDeviceController(device)
+            self._external_controllers.append(ctrl)
+            label = f"{device.device_type.name.title()} #{device.device_id}"
+            docks.append(self._make_dock(f"external_{idx}", label, ctrl))
+
+        self._populate_dock_host(self._external_dock_host, docks)
+        self._window.ui.layoutTabExternal.addWidget(self._external_dock_host)
+
     # ------------------------------------------------------------------
     # Dock state persistence
     # ------------------------------------------------------------------
@@ -132,12 +158,14 @@ class MainWindowController:
     _DOCK_STATE_KEY_SCOPE = "docks/v2/scope"
     _DOCK_STATE_KEY_MCA = "docks/v2/mca"
     _DOCK_STATE_KEY_PSU = "docks/v2/psu"
+    _DOCK_STATE_KEY_EXTERNAL = "docks/v2/external"
 
     def _save_dock_state(self) -> None:
         settings = QSettings()
         settings.setValue(self._DOCK_STATE_KEY_SCOPE, self._scope_dock_host.saveState())
         settings.setValue(self._DOCK_STATE_KEY_MCA, self._mca_dock_host.saveState())
         settings.setValue(self._DOCK_STATE_KEY_PSU, self._psu_dock_host.saveState())
+        settings.setValue(self._DOCK_STATE_KEY_EXTERNAL, self._external_dock_host.saveState())
 
     def _restore_dock_state(self) -> None:
         settings = QSettings()
@@ -150,6 +178,9 @@ class MainWindowController:
         if state := settings.value(self._DOCK_STATE_KEY_PSU):
             if not self._psu_dock_host.restoreState(state):
                 settings.remove(self._DOCK_STATE_KEY_PSU)
+        if state := settings.value(self._DOCK_STATE_KEY_EXTERNAL):
+            if not self._external_dock_host.restoreState(state):
+                settings.remove(self._DOCK_STATE_KEY_EXTERNAL)
 
     def reset_dock_layout(self) -> None:
         """Clear saved dock state and re-tabify all channel docks."""
@@ -157,8 +188,13 @@ class MainWindowController:
         settings.remove(self._DOCK_STATE_KEY_SCOPE)
         settings.remove(self._DOCK_STATE_KEY_MCA)
         settings.remove(self._DOCK_STATE_KEY_PSU)
+        settings.remove(self._DOCK_STATE_KEY_EXTERNAL)
 
-        for host in (self._scope_dock_host, self._mca_dock_host, self._psu_dock_host):
+        dock_hosts = (
+            self._scope_dock_host, self._mca_dock_host,
+            self._psu_dock_host, self._external_dock_host,
+        )
+        for host in dock_hosts:
             docks = host.findChildren(QDockWidget)
             if len(docks) < 2:
                 continue
@@ -215,6 +251,10 @@ class MainWindowController:
         for ctrl in self._psu_controllers:
             ctrl.stop_monitor_sync()
 
+        # 6. Stop external Modbus device workers (blocking)
+        for ctrl in self._external_controllers:
+            ctrl.stop_polling_sync()
+
         if self._thread is not None:
             self._thread.quit()
             self._thread.wait()
@@ -233,6 +273,7 @@ class MainWindowController:
         for device in self._devices:
             device.close()
         self._devices.clear()
+        self._external_devices.close()
         log.info("Shutdown complete")
 
     def reconnect(self) -> None:
@@ -252,8 +293,14 @@ class MainWindowController:
         for device in self._devices:
             device.close()
         self._devices.clear()
+        self._external_devices.close()
+        self._external_devices = ExternalDevices()
 
-        for host in (self._scope_dock_host, self._mca_dock_host, self._psu_dock_host):
+        dock_hosts = (
+            self._scope_dock_host, self._mca_dock_host,
+            self._psu_dock_host, self._external_dock_host,
+        )
+        for host in dock_hosts:
             for dock in host.findChildren(QDockWidget):
                 host.removeDockWidget(dock)
                 widget = dock.widget()
@@ -264,6 +311,7 @@ class MainWindowController:
         self._scope_controllers.clear()
         self._mca_controllers.clear()
         self._psu_controllers.clear()
+        self._external_controllers.clear()
 
         log.info("Reconnect: connecting to %s:%d, %d channel(s)", self._host, self._port, self._channels)
         for ch in range(1, 1 + self._channels):
@@ -272,9 +320,11 @@ class MainWindowController:
         log.info("Reconnect: all %d device(s) connected", len(self._devices))
 
         self._build_channel_docks()
+        self._build_external_docks()
         self._restore_dock_state()
-        log.info("Reconnect complete, %d scope / %d MCA / %d PSU controllers",
-                 len(self._scope_controllers), len(self._mca_controllers), len(self._psu_controllers))
+        log.info("Reconnect complete, %d scope / %d MCA / %d PSU / %d external controllers",
+                 len(self._scope_controllers), len(self._mca_controllers),
+                 len(self._psu_controllers), len(self._external_controllers))
 
     def save_all_settings(self, path) -> None:
         """Save settings for all channels to a single YAML file."""

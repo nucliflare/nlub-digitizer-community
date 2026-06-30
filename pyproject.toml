@@ -20,6 +20,7 @@ dependencies = [
     "pyzmq>=26.0",
     "h5py>=3.11",
     "pyyaml>=6.0",
+    "nlab-modbus",
 ]
 
 [project.optional-dependencies]
@@ -61,3 +62,6 @@ select = ["E", "F", "W", "I", "UP", "N"]
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+
+[tool.uv.sources]
+nlab-modbus = { git = "https://github.com/nucliflare/nlab-modbus", rev = "7c37c98a2f43994bb3305569e5e7a885cb5f7de4" }
