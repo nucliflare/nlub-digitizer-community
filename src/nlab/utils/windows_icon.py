@@ -84,3 +84,5 @@ def apply_taskbar_icon(widget: QWidget, ico_path: Path = DEFAULT_ICO_PATH) -> No
 
     user32.SendMessageW(hwnd, _WM_SETICON, _ICON_BIG, hicon_big)
     user32.SendMessageW(hwnd, _WM_SETICON, _ICON_SMALL, hicon_small)
+    log.info("apply_taskbar_icon: applied from %s (hwnd=%s, hicon_big=%s, hicon_small=%s)",
+              ico_path, hwnd, hicon_big, hicon_small)
