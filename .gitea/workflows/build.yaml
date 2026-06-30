@@ -52,7 +52,7 @@ jobs:
       - name: Build
         run: ${{ matrix.build-cmd }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           name: nlab-${{ matrix.name }}
           path: ${{ matrix.artifact }}

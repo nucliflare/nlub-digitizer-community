@@ -69,7 +69,9 @@ args = [
     # rather than compiled-in, so their bare `import x_pb2` style still
     # resolves via the sys.path trick in grpc/generated/__init__.py:
     "--nofollow-import-to=nlab.hardware.grpc.generated",
-    f"--include-data-dir={GENERATED_PROTO_DIR}=nlab/hardware/grpc/generated",
+    # --include-data-dir silently skips .py files ("code files"); these
+    # specifically need to ship as plain .py, so --include-data-files instead:
+    f"--include-data-files={GENERATED_PROTO_DIR}\\*.py=nlab/hardware/grpc/generated/",
     # Embed resource data folders if needed:
     # f"--include-data-dir={ROOT / 'resources'}=resources",
     str(ENTRY),
