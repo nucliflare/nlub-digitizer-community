@@ -38,6 +38,9 @@ jobs:
           python -m pip install --upgrade pip uv
           uv pip install --system -e ".[dev]"
 
+      - name: Generate UI modules
+        run: python scripts/build_ui.py
+
       - name: Lint
         continue-on-error: true
         run: |

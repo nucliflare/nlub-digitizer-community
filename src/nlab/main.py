@@ -33,7 +33,8 @@ def main() -> None:
     _set_windows_app_user_model_id()
     app = QApplication(sys.argv)
     _icon = QIcon(":/icons/ewt.ico")
-    log.info("App icon from qrc resource: isNull=%s sizes=%s", _icon.isNull(), _icon.availableSizes())
+    log.info("App icon from qrc resource: isNull=%s sizes=%s",
+              _icon.isNull(), _icon.availableSizes())
     app.setWindowIcon(_icon)
     app.setApplicationName("Nuclear Lab Digitizer")
     app.setApplicationVersion(__version__)
