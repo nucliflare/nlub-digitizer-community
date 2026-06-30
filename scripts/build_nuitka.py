@@ -55,12 +55,18 @@ ICON = ROOT / "resources" / "icons" / "ewt.ico"
 GENERATED_PROTO_DIR = ROOT / "src" / "nlab" / "hardware" / "grpc" / "generated"
 DIST = ROOT / "dist"
 
+# On Linux, the executable has no .exe extension so it would be named "nlab"
+# (a file), which conflicts with the "nlab/" directory Nuitka creates for the
+# compiled package. Using a distinct name avoids that. Windows is fine because
+# the exe gets .exe and "nlab/" can coexist with "nlab.exe".
+OUTPUT_NAME = "nlab" if sys.platform == "win32" else "nlab-app"
+
 args = [
     sys.executable, "-m", "nuitka",
     "--standalone",     # folder dist; onefile triggers Windows Smart App Control on unsigned builds
     "--enable-plugin=pyside6",
     f"--output-dir={DIST}",
-    "--output-filename=nlab",
+    f"--output-filename={OUTPUT_NAME}",
     "--include-package=nlab",
     "--include-module=PySide6.QtOpenGL",
     "--include-module=PySide6.QtOpenGLWidgets",
