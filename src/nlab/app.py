@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from PySide6.QtCore import QSettings
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
 
 from nlab import __version__
@@ -37,6 +37,10 @@ class MainAppWindow(QMainWindow):
     def __init__(self, host: str = "", port: int = 50051, channels: int = 2) -> None:
         super().__init__()
         self._setup_ui()
+        # Set explicitly (not just via QApplication's default) — on Windows,
+        # the taskbar icon doesn't reliably pick up the app-wide default for
+        # every top-level window once more than one has been shown.
+        self.setWindowIcon(QIcon(":/icons/ewt.ico"))
         self.setWindowTitle(f"Nuclear Lab Digitizer — {host}:{port}")
         self._controller = MainWindowController(self, host=host, port=port, channels=channels)
         self._apply_view_state()

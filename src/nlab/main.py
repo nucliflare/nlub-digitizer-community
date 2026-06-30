@@ -30,6 +30,7 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+    _set_windows_app_user_model_id()
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(":/icons/ewt.ico"))
     app.setApplicationName("Nuclear Lab Digitizer")
@@ -52,6 +53,25 @@ def main() -> None:
 
     window.show()
     sys.exit(app.exec())
+
+
+def _set_windows_app_user_model_id() -> None:
+    """Give this process its own taskbar identity on Windows.
+
+    Without this, Windows groups the taskbar button under python.exe/
+    pythonw.exe and shows *its* icon there instead of ours — even though
+    setWindowIcon() already makes the titlebar icon correct, since that's
+    purely a Qt-side concern. Must run before any window is shown.
+    """
+    if sys.platform != "win32":
+        return
+    import ctypes
+
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "EWT.NuclearLabDigitizer.Community")
+    except (AttributeError, OSError):
+        log.warning("Could not set Windows AppUserModelID — taskbar icon may be wrong")
 
 
 def _show_splash() -> QSplashScreen | None:
