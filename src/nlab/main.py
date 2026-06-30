@@ -1,12 +1,13 @@
 import logging
 import sys
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QApplication, QSplashScreen
 
 from nlab import __version__
 from nlab.app import MainAppWindow
+from nlab.utils.windows_icon import apply_taskbar_icon
 from nlab.views.connection_dialog import ConnectionDialog
 
 # Registers compiled Qt resources (icons, images) with the Qt resource system.
@@ -55,6 +56,11 @@ def main() -> None:
     window = MainAppWindow(host=dialog.ip, port=dialog.port, channels=dialog.channels)
 
     window.show()
+    # Apply the native taskbar icon after the event loop starts so Qt has
+    # fully settled the QMainWindow's native HWND (dock layout, DWM
+    # composition, etc.) before we target it with WM_SETICON. The in-__init__
+    # call targets a provisional handle that may be replaced on first show().
+    QTimer.singleShot(0, lambda: apply_taskbar_icon(window))
     sys.exit(app.exec())
 
 

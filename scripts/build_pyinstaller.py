@@ -22,6 +22,7 @@ easier to debug hidden-import issues, but larger binary and easier to
 reverse-engineer.  Use Nuitka (scripts/build_nuitka.py) for release builds.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -48,10 +49,12 @@ args = [
     # PyInstaller's static analysis never finds `settings_pb2` etc. since
     # they're not reachable from the `nlab` package namespace.
     f"--paths={GENERATED_PROTO_DIR}",
+    # nlab.utils.windows_icon's native taskbar-icon override needs a real
+    # on-disk .ico at runtime (relative to the onefile extraction dir) — see
+    # the matching note in scripts/build_nuitka.py.
+    f"--add-data={ICON}{os.pathsep}resources/icons",
     # Add hidden imports if PyInstaller misses them at analysis time:
     # "--hidden-import", "nlab.backend.grpc_device",
-    # Embed non-Python data (adjust paths as needed):
-    # f"--add-data={ROOT / 'resources'}:resources",
     str(ENTRY),
 ]
 
