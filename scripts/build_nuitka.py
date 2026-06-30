@@ -67,13 +67,18 @@ args = [
     "--include-module=PySide6.QtOpenGLWidgets",
     # Keep the generated gRPC stubs as plain files (see module docstring)
     # rather than compiled-in, so their bare `import x_pb2` style still
-    # resolves via the sys.path trick in grpc/generated/__init__.py:
+    # resolves via the sys.path trick in grpc/generated/__init__.py. Since
+    # they're then loaded dynamically at runtime, Nuitka's static import
+    # scan never sees their `from google.protobuf import ...` either —
+    # include it explicitly too.
     "--nofollow-import-to=nlab.hardware.grpc.generated",
+    "--include-package=google.protobuf",
     # --include-data-dir silently skips .py files ("code files"); these
     # specifically need to ship as plain .py, so --include-data-files instead:
     f"--include-data-files={GENERATED_PROTO_DIR}\\*.py=nlab/hardware/grpc/generated/",
-    # Embed resource data folders if needed:
-    # f"--include-data-dir={ROOT / 'resources'}=resources",
+    # nlab.utils.windows_icon's native taskbar-icon override needs a real
+    # on-disk .ico — bundle it next to the exe for that runtime lookup:
+    f"--include-data-files={ICON}=resources/icons/ewt.ico",
     str(ENTRY),
 ]
 

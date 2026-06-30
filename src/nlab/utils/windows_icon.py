@@ -8,10 +8,32 @@ from PySide6.QtWidgets import QWidget
 
 log = logging.getLogger(__name__)
 
-# src/nlab/utils/windows_icon.py -> parents[3] is the project root when
-# running from source. Resolved once here so callers at any module depth
-# don't need to recompute it relative to their own file.
-DEFAULT_ICO_PATH = Path(__file__).resolve().parents[3] / "resources" / "icons" / "ewt.ico"
+
+def _resolve_default_ico_path() -> Path:
+    """Find ewt.ico whether running from source or from a Nuitka/PyInstaller build.
+
+    Source layout:  src/nlab/utils/windows_icon.py -> parents[3] is the
+    project root, so resources/icons/ewt.ico hangs off that.
+
+    Packaged layout: a frozen build collapses the src/ layer, so this same
+    file lives one level shallower relative to the dist root. The build
+    script also copies resources/icons/ next to the executable for exactly
+    this lookup — see scripts/build_nuitka.py.
+    """
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parents[3] / "resources" / "icons" / "ewt.ico",  # source layout
+        here.parents[2] / "resources" / "icons" / "ewt.ico",  # packaged layout
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return candidates[0]  # fall back to the dev-layout path for the warning message
+
+
+# Resolved once here so callers at any module depth don't need to recompute
+# it relative to their own file.
+DEFAULT_ICO_PATH = _resolve_default_ico_path()
 
 _WM_SETICON = 0x0080
 _ICON_SMALL = 0
