@@ -19,7 +19,7 @@ A PySide6 desktop application for real-time data acquisition and<br>
 pulse-shape analysis with EWT digitizer hardware.<br>
 <br>
 Organization: EWT<br>
-License: GPL-3.0-or-later<br>
+License: MIT<br>
 <br>
 Source: <a href="https://github.com/ewt/nlab-community">github.com/ewt/nlab-community</a>
 """

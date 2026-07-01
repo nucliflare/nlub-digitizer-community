@@ -7,6 +7,7 @@ name = "nlab"
 version = "0.1.0"
 description = "Device communication and measurement GUI application"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.12"
 dependencies = [
     "PySide6>=6.7",
