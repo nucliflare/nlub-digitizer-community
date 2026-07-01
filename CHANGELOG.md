@@ -61,5 +61,5 @@ Initial open-source release of the Nuclear Lab Digitizer Community Edition.
 
 ---
 
-[Unreleased]: https://your-gitea-host/your-org/nlab-community/compare/v0.1.0...HEAD
-[0.1.0]: https://your-gitea-host/your-org/nlab-community/releases/tag/v0.1.0
+[Unreleased]: https://github.com/nucliflare/nlub-digitizer-community/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/nucliflare/nlub-digitizer-community/releases/tag/v0.1.0
