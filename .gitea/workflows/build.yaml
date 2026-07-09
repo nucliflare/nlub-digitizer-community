@@ -48,7 +48,8 @@ jobs:
       - name: Create venv (Linux - uv downloads Python 3.12 automatically)
         if: matrix.name == 'ubuntu'
         run: |
-          pip3 install uv
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
           uv venv --python 3.12 .venv
 
       - name: Install
