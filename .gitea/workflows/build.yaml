@@ -50,7 +50,7 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.local/bin:$PATH"
-          uv venv --python 3.12 .venv
+          uv venv --python 3.12 --seed .venv
 
       - name: Install
         run: |
