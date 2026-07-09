@@ -11,12 +11,12 @@ jobs:
       matrix:
         include:
           - name: windows
-            runs-on: windows-local
+            runs-on: windows-latest
             python-exe: python
             venv-python: .venv/Scripts/python.exe
             artifact: dist/main.dist
           - name: ubuntu
-            runs-on: ubuntu-local
+            runs-on: ubuntu-latest
             python-exe: python3
             venv-python: .venv/bin/python
             artifact: dist/main.dist
@@ -24,7 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -68,8 +69,7 @@ jobs:
       - name: Build
         run: ${{ matrix.venv-python }} scripts/build_nuitka.py
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: nlab-${{ matrix.name }}
           path: ${{ matrix.artifact }}
@@ -77,14 +77,17 @@ jobs:
   release:
     needs: build
     if: github.event_name == 'push'
-    runs-on: ubuntu-local
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: dist
 
-      - name: Create Gitea Release
-        uses: akkuman/gitea-release-action@v1
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/**/*
+          generate_release_notes: true

@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Device communication and measurement GUI application"
 readme = "README.md"
 license = { file = "LICENSE" }
+authors = [
+    { name = "Kamil Brylew", email = "kamil.brylew@nuclear-lab.com" },
+]
 requires-python = ">=3.12"
 dependencies = [
     "PySide6>=6.7",
@@ -41,6 +44,8 @@ dev = [
     # Linting / type checking
     "ruff>=0.4",
     "mypy>=1.10",
+    # Versioning
+    "bump-my-version",
 ]
 
 [project.scripts]
@@ -63,6 +68,26 @@ select = ["E", "F", "W", "I", "UP", "N"]
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+
+[tool.bumpversion]
+current_version = "0.1.0"
+commit = true
+tag = true
+tag_name = "v{new_version}"
+tag_message = "Release {new_version}"
+message = "chore: bump version {current_version} -> {new_version}"
+allow_dirty = false
+
+[[tool.bumpversion.files]]
+filename = "src/nlab/_version.py"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[project.urls]
+Repository = "https://github.com/nucliflare/nlab-digitizer-community"
 
 [tool.uv.sources]
 nlab-modbus = { git = "https://github.com/nucliflare/nlab-modbus", tag = "v0.2.2" }
