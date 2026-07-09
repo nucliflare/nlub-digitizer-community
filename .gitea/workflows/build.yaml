@@ -32,10 +32,10 @@ jobs:
       - name: Install Python 3.12 and Qt runtime deps (Linux only)
         if: matrix.name == 'ubuntu'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository ppa:deadsnakes/ppa -y
-          sudo apt-get install -y python3.12 python3.12-venv python3.12-dev \
+          apt-get update
+          apt-get install -y software-properties-common
+          add-apt-repository ppa:deadsnakes/ppa -y
+          apt-get install -y python3.12 python3.12-venv python3.12-dev \
             libgl1 libegl1 libxkbcommon0 libxcb-cursor0 libxcb-icccm4 \
             libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
             libxcb-xinerama0 patchelf
