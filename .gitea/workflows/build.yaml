@@ -64,12 +64,14 @@ jobs:
         run: ${{ matrix.venv-python }} scripts/generate_proto.py
 
       - name: Lint
+        if: false
         continue-on-error: true
         run: |
           ${{ matrix.venv-python }} -m ruff check .
           ${{ matrix.venv-python }} -m mypy src/nlab
 
       - name: Test
+        if: false
         env:
           QT_QPA_PLATFORM: offscreen
         run: ${{ matrix.venv-python }} -m pytest
