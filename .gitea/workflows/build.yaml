@@ -17,7 +17,7 @@ jobs:
             artifact: dist/main.dist
           - name: ubuntu
             runs-on: ubuntu-local
-            python-exe: python3.12
+            python-exe: python3
             venv-python: .venv/bin/python
             artifact: dist/main.dist
     runs-on: ${{ matrix.runs-on }}
@@ -29,12 +29,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Python 3.12 and Qt runtime deps (Linux only)
+      - name: Install Qt runtime deps (Linux only)
         if: matrix.name == 'ubuntu'
         run: |
-          echo "deb http://deb.debian.org/debian bookworm-backports main" > /etc/apt/sources.list.d/backports.list
           apt-get update
-          apt-get install -y -t bookworm-backports python3.12 python3.12-venv python3.12-dev
           apt-get install -y libgl1 libegl1 libxkbcommon0 libxcb-cursor0 libxcb-icccm4 \
             libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
             libxcb-xinerama0 patchelf
@@ -43,8 +41,15 @@ jobs:
         if: github.event_name == 'push'
         run: ${{ matrix.python-exe }} scripts/check_release_tag.py
 
-      - name: Create venv
-        run: ${{ matrix.python-exe }} -m venv .venv
+      - name: Create venv (Windows)
+        if: matrix.name == 'windows'
+        run: python -m venv .venv
+
+      - name: Create venv (Linux - uv downloads Python 3.12 automatically)
+        if: matrix.name == 'ubuntu'
+        run: |
+          pip3 install uv
+          uv venv --python 3.12 .venv
 
       - name: Install
         run: |
