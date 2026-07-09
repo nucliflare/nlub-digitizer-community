@@ -65,4 +65,4 @@ strict = true
 ignore_missing_imports = true
 
 [tool.uv.sources]
-nlab-modbus = { git = "https://github.com/nucliflare/nlab-modbus", rev = "7c37c98a2f43994bb3305569e5e7a885cb5f7de4" }
+nlab-modbus = { git = "https://github.com/nucliflare/nlab-modbus", tag = "v0.2.2" }

@@ -244,6 +244,8 @@ class ScopeController(QWidget):
         self.ui.btnStart.setEnabled(False)
         self.ui.btnStop.setChecked(False)
         self.ui.btnAcquireFrame.setEnabled(False)
+        self.ui.cbDmaEnable.setEnabled(False)
+        self.ui.btnDmaFile.setEnabled(False)
 
         if self.ui.cbDmaEnable.isChecked() and self._scope_dma is not None:
             self._start_with_dma()
@@ -323,6 +325,8 @@ class ScopeController(QWidget):
         self.ui.btnStart.setEnabled(True)
         self.ui.btnStop.setEnabled(False)
         self.ui.btnAcquireFrame.setEnabled(True)
+        self.ui.cbDmaEnable.setEnabled(True)
+        self.ui.btnDmaFile.setEnabled(True)
         log.info("Scope ch%d: acquisition stopped", self._channel)
 
     def _start_measurement_timer(self) -> None:

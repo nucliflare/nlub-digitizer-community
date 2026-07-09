@@ -464,6 +464,8 @@ class MCAController(QWidget):
         self.ui.btnStart.setChecked(True)
         self.ui.btnStart.setEnabled(False)
         self.ui.btnStop.setChecked(False)
+        self.ui.cbDmaEnable.setEnabled(False)
+        self.ui.btnDmaFile.setEnabled(False)
 
         if self.ui.cbDmaEnable.isChecked() and self._mca_dma is not None:
             self._start_with_dma()
@@ -495,6 +497,8 @@ class MCAController(QWidget):
         self.ui.btnStart.setChecked(False)
         self.ui.btnStart.setEnabled(True)
         self.ui.btnStop.setEnabled(False)
+        self.ui.cbDmaEnable.setEnabled(True)
+        self.ui.btnDmaFile.setEnabled(True)
         log.info("MCA ch%d: measurement stopped", self._channel)
 
     def _on_measurement_done(self) -> None:
@@ -511,6 +515,8 @@ class MCAController(QWidget):
         self.ui.btnStart.setEnabled(True)
         self.ui.btnStop.setChecked(True)
         self.ui.btnStop.setEnabled(False)
+        self.ui.cbDmaEnable.setEnabled(True)
+        self.ui.btnDmaFile.setEnabled(True)
 
     def _on_clear_spectrum(self) -> None:
         self._mca.clear_spectrum()
