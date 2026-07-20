@@ -51,6 +51,7 @@ class TriggerMode(IntEnum):
     ANY_BELOW = 1
     FALLING_EDGE = 2
     RISING_EDGE = 3
+    TIMED = 4
 
 
 class ScopeParam(IntEnum):

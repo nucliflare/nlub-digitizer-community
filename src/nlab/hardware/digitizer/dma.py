@@ -33,6 +33,11 @@ FILE_HEADER_STRUCT = struct.Struct("<4sHBBdI4x")  # 24 bytes
 FILE_MAGIC = b"NDMA"
 FILE_VERSION = 1
 
+# Each raw scope DMA frame is prefixed with a per-frame timestamp: the first
+# 4 int16 slots (8 bytes) are a little-endian uint64, the remaining
+# (frame_samples - SCOPE_TIMESTAMP_WORDS) slots are the int16 waveform.
+SCOPE_TIMESTAMP_WORDS = 4
+
 _EVENT_DTYPE = np.dtype([
     ("marker", np.uint8),
     ("zc_offset", np.uint8),

@@ -13,6 +13,7 @@ from nlab.hardware.digitizer.dma import (
     FILE_HEADER_STRUCT,
     FILE_MAGIC,
     EVENT_SIZE,
+    SCOPE_TIMESTAMP_WORDS,
     _EVENT_DTYPE,
 )
 
@@ -84,8 +85,12 @@ def convert_scope(src: Path, dst: Path) -> int:
         log.warning("Scope file size not aligned to frame size, truncating %d trailing bytes",
                     len(raw_data) % frame_bytes)
 
-    samples_per_frame = frame_bytes // 2
-    waveforms = np.frombuffer(raw_data[:n_frames * frame_bytes], dtype=np.int16).reshape(n_frames, samples_per_frame)
+    words_per_frame = frame_bytes // 2
+    samples_per_frame = words_per_frame - SCOPE_TIMESTAMP_WORDS
+    frame_dtype = np.dtype([("timestamp", "<u8"), ("samples", "<i2", (samples_per_frame,))])
+    frames = np.frombuffer(raw_data[:n_frames * frame_bytes], dtype=frame_dtype)
+    timestamps = frames["timestamp"]
+    waveforms = frames["samples"]
     time_ns = np.arange(0, 8 * samples_per_frame, 8)
 
     with h5py.File(dst, "w") as h5:
@@ -99,6 +104,8 @@ def convert_scope(src: Path, dst: Path) -> int:
 
         h5.create_dataset("waveforms", data=waveforms, compression="gzip", compression_opts=4)
         h5["waveforms"].attrs["unit"] = "ADC counts (int16)"
+        h5.create_dataset("timestamps", data=timestamps, compression="gzip", compression_opts=4)
+        h5["timestamps"].attrs["unit"] = "8 ns ticks"
         h5.create_dataset("time_ns", data=time_ns)
         h5["time_ns"].attrs["unit"] = "nanoseconds"
 

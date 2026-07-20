@@ -10,7 +10,7 @@ jupyter: python3
 #| label: config
 #| tags: [parameters]
 
-FILENAME = "D:/work/measurements/scope_ch2_20260629_174815_001.h5"
+FILENAME = "D:/work/measurements/test2.h5"
 ```
 
 # Load Data
@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 with h5py.File(FILENAME, "r") as f:
     waveforms = f["waveforms"][:]
     time_ns = f["time_ns"][:]
+    frame_timestamps = f["timestamps"][:]
     channel = f.attrs["channel"]
     timestamp = f.attrs["recording_timestamp"]
     frame_samples = f.attrs["frame_samples"]
@@ -37,6 +38,7 @@ print(f"Samples per frame: {samples_per_frame}")
 print(f"Frame size (bytes): {frame_samples}")
 print(f"Waveform shape: {waveforms.shape}")
 print(f"Time axis: {time_ns[0]:.0f} - {time_ns[-1]:.0f} ns")
+print(f"Frame timestamps: {frame_timestamps[0]} - {frame_timestamps[-1]} (8 ns ticks)")
 ```
 
 # Waveform Statistics
@@ -61,7 +63,7 @@ indices.sort()
 
 fig, ax = plt.subplots(figsize=(10, 5))
 for idx in indices:
-    ax.plot(time_ns, waveforms[idx], alpha=0.7, linewidth=0.8, label=f"#{idx}")
+    ax.plot(time_ns[:10], waveforms[idx][:10], alpha=0.7, linewidth=0.8, label=f"#{idx}")
 ax.set_xlabel("Time [ns]")
 ax.set_ylabel("Amplitude [ADC counts]")
 ax.set_title("Random Impulses")
@@ -109,4 +111,24 @@ plt.show()
 
 print(f"Peak amplitude: mean={peaks.mean():.1f}, std={peaks.std():.1f}")
 print(f"Range: [{peaks.min()}, {peaks.max()}]")
+```
+
+# Baseline Offset vs Time
+
+```{python}
+#| label: offset-vs-time
+#| fig-cap: "Per-frame baseline offset (zero-shifted) vs. frame timestamp"
+time_s = (frame_timestamps - frame_timestamps[0]) * 8e-9
+frame_avg = waveforms.mean(axis=1).astype(np.float64)
+offset_zeroed = frame_avg - frame_avg.mean()
+
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.plot(time_s, offset_zeroed, ".", color="C0", markersize=2, alpha=0.5)
+ax.set_xlabel("Time [s]")
+ax.set_ylabel("Baseline offset [ADC counts]")
+ax.set_title("Per-frame Baseline Offset vs. Time")
+ax.axhline(0, color="black", linewidth=0.8, alpha=0.5)
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
 ```
